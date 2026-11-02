@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Администратор — LumenBook{% endblock %}
+{% block content %}
+<header class="site-header">
+  <a class="logo" href="/">Lumen<span>Book</span></a>
+  <nav aria-label="Аккаунт"><span>{{ user.name }} · Администратор</span><button class="text-button" data-logout type="button">Выйти</button></nav>
+</header>
+<main class="page-content">
+  <h1>Залы студии</h1>
+  <div class="room-grid">
+    {% for room in rooms %}
+    <article class="surface">
+      <h2>{{ room.name }}</h2>
+      <p>{{ '{:,.0f}'.format(room.hourly_price_minor / 100).replace(',', ' ') }} ₽ / час</p>
+      <p>{{ room.opens_at.strftime('%H:%M') }}–{{ room.closes_at.strftime('%H:%M') }}</p>
+    </article>
+    {% endfor %}
+  </div>
+  <p class="form-error" id="form-error" role="alert" hidden></p>
+</main>
+{% endblock %}
