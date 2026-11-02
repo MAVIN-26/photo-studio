@@ -49,6 +49,8 @@
 
 ## ⚙️ Планируемый стек технологий (Спринты 1–4)
 
+Техническая документация: [Архитектура](docs/ARCHITECTURE.md) и [REST API](docs/REST_API.md).
+
 * **Backend:** Python 3.11, FastAPI, SQLAlchemy, Alembic (миграции БД).
 * **Database:** PostgreSQL 15.
 * **DevOps:** Docker, Docker Compose.
