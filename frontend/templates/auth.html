@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Регистрация' if register else 'Вход' }} — LumenBook{% endblock %}
+{% block content %}
+<main class="auth-page">
+  <section class="auth-card" aria-label="{{ 'Регистрация' if register else 'Вход' }}">
+    <header class="auth-heading">
+      <a class="logo logo-large" href="/" aria-label="LumenBook — главная">Lumen<span>Book</span></a>
+      <p>Бронирование залов фотостудии</p>
+    </header>
+    <nav class="auth-tabs" aria-label="Доступ к аккаунту">
+      <a href="/login" {% if not register %}aria-current="page"{% endif %}>Вход</a>
+      <a href="/register" {% if register %}aria-current="page"{% endif %}>Регистрация</a>
+    </nav>
+    <form id="auth-form" data-mode="{{ 'register' if register else 'login' }}" novalidate>
+      {% if register %}
+      <div class="field">
+        <label for="name">Имя</label>
+        <input id="name" name="name" autocomplete="given-name" placeholder="Как к вам обращаться" maxlength="100" required aria-describedby="name-error">
+        <p class="field-error" id="name-error" hidden></p>
+      </div>
+      {% endif %}
+      <div class="field">
+        <label for="identifier">Телефон или email</label>
+        <input id="identifier" name="identifier" autocomplete="username" placeholder="Введите телефон или email" maxlength="254" required autocapitalize="none" spellcheck="false" aria-describedby="identifier-error">
+        <p class="field-error" id="identifier-error" hidden></p>
+      </div>
+      <div class="field">
+        <label for="password">Пароль</label>
+        <div class="password-field">
+          <input id="password" name="password" type="password" autocomplete="{{ 'new-password' if register else 'current-password' }}" placeholder="Введите пароль" maxlength="128" {% if register %}minlength="8"{% endif %} required aria-describedby="password-error{% if register %} password-hint{% endif %}">
+          <button class="password-toggle" type="button" aria-label="Показать пароль" aria-pressed="false" aria-controls="password">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        {% if register %}<p class="field-hint" id="password-hint">Не меньше 8 символов</p>{% endif %}
+        <p class="field-error" id="password-error" hidden></p>
+      </div>
+      {% if register %}
+      <div class="consent-field">
+        <label class="checkbox-label" for="consent">
+          <input id="consent" name="consent" type="checkbox" required aria-describedby="consent-error">
+          <span>Согласен на обработку персональных данных</span>
+        </label>
+        <p class="field-error" id="consent-error" hidden></p>
+      </div>
+      {% endif %}
+      <p class="form-error" id="form-error" role="alert" hidden></p>
+      <button class="button primary submit-button" type="submit" disabled>{{ 'Зарегистрироваться' if register else 'Войти' }}</button>
+      <noscript><p class="field-error">Для входа и регистрации включите JavaScript.</p></noscript>
+    </form>
+    <p class="auth-footer">{{ 'Уже есть аккаунт?' if register else 'Нет аккаунта?' }} <a href="{{ '/login' if register else '/register' }}">{{ 'Войти' if register else 'Зарегистрироваться' }}</a></p>
+  </section>
+</main>
+{% endblock %}

@@ -2,6 +2,7 @@ from logging.config import fileConfig
 
 from alembic import context
 
+from app.auth.models import AuthSession, User  # noqa: F401
 from app.config import get_settings
 from app.database import Base, create_database_engine
 from app.rooms.models import Room  # noqa: F401

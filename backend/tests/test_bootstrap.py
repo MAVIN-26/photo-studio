@@ -1,52 +1,14 @@
-import os
 from datetime import time
-from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from alembic import command
-from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, insert, select, update
-from sqlalchemy.engine import make_url
+from sqlalchemy import insert, select, update
 from sqlalchemy.exc import IntegrityError
 
-from app.config import Settings
 from app.rooms.models import Room
 from scripts.seed_rooms import seed_rooms
-
-
-@pytest.fixture
-def database(monkeypatch):
-    database_url = os.getenv("TEST_DATABASE_URL")
-    if not database_url:
-        pytest.skip("Для интеграционных проверок нужен TEST_DATABASE_URL")
-    url = make_url(database_url)
-    if url.get_backend_name() != "postgresql" or url.database != "lumenbook_test":
-        pytest.fail("Проверки разрешены только в PostgreSQL с БД lumenbook_test")
-    settings = Settings(
-        postgres_db=url.database,
-        postgres_user=url.username,
-        postgres_password=url.password,
-        postgres_host=url.host,
-        postgres_port=url.port or 5432,
-    )
-    for key in ("db", "user", "host", "port"):
-        monkeypatch.setenv(f"POSTGRES_{key.upper()}", str(getattr(settings, f"postgres_{key}")))
-    monkeypatch.setenv("POSTGRES_PASSWORD", settings.postgres_password.get_secret_value())
-    from app.config import get_settings
-
-    get_settings.cache_clear()
-    config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
-    command.upgrade(config, "head")
-    engine = create_engine(url)
-    try:
-        with engine.begin() as connection:
-            connection.execute(Room.__table__.delete())
-        yield engine, settings, config
-    finally:
-        engine.dispose()
-        get_settings.cache_clear()
 
 
 def test_migrations_and_seed_preserve_edited_data(database):
@@ -70,9 +32,9 @@ def test_migrations_and_seed_preserve_edited_data(database):
 
     assert seed_rooms(engine) == 0
     with engine.connect() as connection:
-        assert connection.scalar(
-            select(Room.hourly_price_minor).where(Room.name == "Лофт")
-        ) == 300_000
+        assert (
+            connection.scalar(select(Room.hourly_price_minor).where(Room.name == "Лофт")) == 300_000
+        )
         assert len(connection.execute(select(Room.id)).all()) == 4
 
 

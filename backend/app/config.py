@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     postgres_password: SecretStr = Field(min_length=1)
     postgres_host: str = Field(default="db", min_length=1)
     postgres_port: int = Field(default=5432, ge=1, le=65535)
+    session_cookie_secure: bool = False
+    session_ttl_hours: int = Field(default=12, ge=1, le=168)
 
     @property
     def database_url(self) -> URL:

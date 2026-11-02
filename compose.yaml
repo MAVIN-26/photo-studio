@@ -26,6 +26,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Create .env from .env.example}
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
     ports:
       - "127.0.0.1:${APP_PORT:-8000}:8000"
     depends_on:
