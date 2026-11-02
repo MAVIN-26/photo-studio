@@ -21,8 +21,9 @@
 
 ## 📌 Текущий статус проекта
 
-* **Текущая фаза:** **Фаза 4 (Нулевой спринт)** — Подготовка к исполнению.
-* **Статус разработки:** Предиктивный этап планирования и аналитическая проработка завершены на 100%. Непосредственная кодовая разработка (FastAPI + PostgreSQL) стартует в **Спринте 1** (с 29.10.2026).
+* **Текущая фаза:** **Спринт 1** — Окружение и основа БД.
+* **Реализовано:** Docker Compose, FastAPI, подключение шаблонов и статики, проверка БД `/health`, миграция таблицы залов и скрипт её заполнения.
+* **Следующий этап:** регистрация, вход и разграничение ролей, затем каталог залов.
 
 ---
 
@@ -71,12 +72,77 @@
 
 ## 🚀 Инструкция по развёртыванию
 
-*Раздел наполняется разработчиком по мере сдачи пакета ИСР 3.1.1 (Спринт 1).*
+Требования: Docker Desktop с Linux-контейнерами и Docker Compose v2. Локальная установка Python и PostgreSQL для запуска через Docker не нужна.
 
-После публикации образов запуск прототипа будет осуществляться командой:
+Из корня репозитория в PowerShell:
 
-    docker compose up --build
+```powershell
+Copy-Item .env.example .env
+docker compose up --build --detach --wait
+docker compose exec app python -m scripts.seed_rooms
+```
 
-* **Клиентская витрина:** http://localhost:8000
-* **Кабинет администратора:** http://localhost:8000/admin
-* **Интерактивная документация API (Swagger):** http://localhost:8000/docs
+Если `.env` уже существует, используй его без повторного копирования. Образ приложения собирается локально из Dockerfile. PostgreSQL должен пройти проверку готовности, затем приложение автоматически применяет миграции Alembic и запускает сервер.
+
+Доступные адреса:
+
+* **Стартовая страница:** http://localhost:8000
+* **Проверка приложения и БД:** http://localhost:8000/health
+* **Swagger:** http://localhost:8000/docs
+* **Схема OpenAPI:** http://localhost:8000/openapi.json
+
+При доступной БД `/health` возвращает `200` и `{"status":"ok","database":"ok"}`, при ошибке подключения — `503`. Каталог, авторизация и кабинет администратора появятся на следующих этапах.
+
+### Настройки
+
+| Переменная | Значение в примере | Назначение |
+| --- | --- | --- |
+| `APP_PORT` | `8000` | Порт приложения на localhost |
+| `POSTGRES_DB` | `lumenbook` | Имя базы данных |
+| `POSTGRES_USER` | `lumenbook` | Пользователь PostgreSQL |
+| `POSTGRES_PASSWORD` | `lumenbook_local` | Пароль локальной БД |
+| `POSTGRES_HOST` | `db` | Адрес БД для Python-команд вне Compose |
+| `POSTGRES_PORT` | `5432` | Порт БД для Python-команд вне Compose |
+
+Compose подключает приложение к `db:5432` во внутренней сети. Порт PostgreSQL на хост не публикуется. `.env` исключён из Git и контекста сборки. Изменение пользователя, пароля или имени БД в `.env` не перенастраивает уже инициализированный volume PostgreSQL.
+
+### Миграции и данные
+
+```powershell
+docker compose exec app alembic current
+docker compose exec app alembic check
+docker compose exec app python -m scripts.seed_rooms
+docker compose exec db psql -U lumenbook -d lumenbook -c "SELECT name, hourly_price_minor, opens_at, closes_at FROM rooms ORDER BY name;"
+```
+
+Команда `psql` приведена для значений `.env.example`; при изменении настроек замени пользователя и имя БД. Скрипт создаёт четыре зала со ставками из концепт-документа и часами работы 09:00–23:00. Повторный запуск не создаёт дубликаты и не перезаписывает изменённые залы. Цены хранятся в копейках. Фотографии пока не заданы (`image_url = null`).
+
+Остановка с сохранением данных:
+
+```powershell
+docker compose down
+docker compose up --detach --wait
+```
+
+Данные сохраняются в volume `lumenbook_postgres_data`. Команда `docker compose down --volumes` удаляет этот volume вместе со всеми данными проекта.
+
+Логи приложения и PostgreSQL:
+
+```powershell
+docker compose logs --tail 100 app db
+```
+
+### Проверки
+
+Интеграционные проверки используют отдельную БД `lumenbook_test`. Они проверяют миграции, ограничения таблицы, повторное заполнение с сохранением изменённой цены, шаблоны, статику и ответы `/health` при доступной и недоступной БД.
+
+Для настроек из `.env.example`:
+
+```powershell
+docker compose exec db createdb -U lumenbook lumenbook_test
+docker build --target test -t lumenbook-tests .
+docker run --rm --network lumenbook_default --env-file .env -e POSTGRES_HOST=db -e TEST_DATABASE_URL=postgresql+psycopg://lumenbook:lumenbook_local@db:5432/lumenbook_test lumenbook-tests
+docker run --rm --env-file .env lumenbook-tests ruff check --no-cache .
+```
+
+Тестовую БД нужно создать один раз. При изменении настроек замени пользователя и строку подключения в командах. Проверки изменяют только БД с точным именем `lumenbook_test`; указывать рабочую базу нельзя.

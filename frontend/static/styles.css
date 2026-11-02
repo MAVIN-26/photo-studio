@@ -1,0 +1,12 @@
+body {
+  margin: 0;
+  color: #202020;
+  background: #f8f6f2;
+  font-family: system-ui, sans-serif;
+}
+
+main {
+  max-width: 64rem;
+  margin: 4rem auto;
+  padding: 0 1.5rem;
+}
