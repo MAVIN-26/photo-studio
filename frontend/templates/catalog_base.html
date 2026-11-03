@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "components/icons.html" import icon %}
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', path='/catalog.css') }}">
+{% endblock %}
+{% block content %}
+<a class="skip-link" href="#main-content">К содержимому</a>
+<header class="catalog-header">
+  <div class="catalog-header-top">
+    <a class="logo" href="/" aria-label="LumenBook — каталог залов">Lumen<span>Book</span></a>
+    <div class="catalog-account">
+      {% if user %}
+        <details class="account-menu">
+          <summary aria-label="Ваш аккаунт" title="{{ user.name }}"><span class="avatar">{{ user.name[0] | upper }}</span></summary>
+          <div class="account-popover">
+            <strong>{{ user.name }}</strong>
+            <span>{{ user.email or user.phone }}</span>
+            <span>{{ 'Администратор' if user.role == 'admin' else 'Клиент' }}</span>
+            {% if user.role == 'admin' %}<a href="/admin">Раздел администратора</a>{% endif %}
+          </div>
+        </details>
+        <button class="icon-button" data-logout type="button" aria-label="Выйти" title="Выйти">{{ icon('logout') }}</button>
+      {% else %}
+        <a class="catalog-login" href="/login">Войти</a>
+        <a class="button primary compact" href="/register">Регистрация</a>
+      {% endif %}
+    </div>
+  </div>
+  <nav class="catalog-nav" aria-label="Основная навигация">
+    <a href="/" aria-current="{{ 'page' if request.url.path == '/' else 'true' }}">Залы</a>
+    {% if user and user.role == 'admin' %}<a href="/admin">Администратор</a>{% endif %}
+  </nav>
+</header>
+{% block catalog_content %}{% endblock %}
+<p class="form-error catalog-error" id="form-error" role="alert" hidden></p>
+{% endblock %}

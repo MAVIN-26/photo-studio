@@ -46,6 +46,7 @@ HTML-маршруты и API вызывают общие сервисы. Биз�
 | `backend/app/main.py` | Создание FastAPI и подключение маршрутов |
 | `backend/app/config.py` | Настройки из окружения |
 | `backend/app/database.py` | Подключение и сессии БД |
+| `backend/app/dependencies.py` | Общая HTTP-зависимость сессии БД |
 | `backend/app/auth/` | Маршруты, схемы, модели и сервис авторизации |
 | `backend/app/rooms/` | Каталог и настройки залов |
 | `backend/app/bookings/` | Бронирование и общий календарь занятости |

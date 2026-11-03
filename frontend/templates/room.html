@@ -1,0 +1,29 @@
+{% extends "catalog_base.html" %}
+{% block title %}{{ room.name }} — Lumen Studio{% endblock %}
+{% block catalog_content %}
+<main class="room-content" id="main-content">
+  <a class="room-back" href="/">{{ icon('arrow') }}Все залы</a>
+  <article class="room-detail" aria-labelledby="room-title">
+    <div class="room-hero">
+      {% if room.image_url %}
+        <img class="room-image" src="{{ room.image_url }}" alt="Зал «{{ room.name }}»" width="375" height="232" fetchpriority="high">
+      {% else %}
+        <div class="room-image image-missing">{{ icon('image') }}<span>Изображение зала пока не добавлено</span></div>
+      {% endif %}
+    </div>
+    <div class="room-info">
+      <h1 id="room-title">{{ room.name }}</h1>
+      <p class="room-price"><strong>{{ room.hourly_price_minor | price }} ₽</strong><span>за час</span></p>
+      {% if room.description %}<p class="room-description">{{ room.description }}</p>{% endif %}
+      <section class="room-conditions" aria-labelledby="conditions-title">
+        <h2 id="conditions-title">Условия аренды</h2>
+        <dl>
+          <div><dt>Часы работы</dt><dd>Ежедневно {{ room.opens_at.strftime('%H:%M') }}–{{ room.closes_at.strftime('%H:%M') }}</dd></div>
+          <div><dt>Часовой пояс</dt><dd>Московское время (МСК)</dd></div>
+          <div><dt>Минимальная аренда</dt><dd>1 час</dd></div>
+        </dl>
+      </section>
+    </div>
+  </article>
+</main>
+{% endblock %}

@@ -6,6 +6,7 @@
     <title>{% block title %}Lumen Studio — LumenBook{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
     <script src="{{ url_for('static', path='/auth.js') }}" defer></script>
+    {% block head %}{% endblock %}
   </head>
   <body>{% block content %}{% endblock %}</body>
 </html>
