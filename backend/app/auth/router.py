@@ -4,10 +4,11 @@ from fastapi import APIRouter, Request, Response
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import CsrfSession, CurrentUser, Database, fail
+from app.auth.dependencies import CsrfSession, CurrentUser, fail
 from app.auth.models import AuthSession, User
 from app.auth.schemas import AuthResponse, LoginRequest, RegisterRequest, UserResponse
 from app.auth.service import COOKIE_NAME, authenticate, find_session, new_session, password_hasher
+from app.dependencies import Database
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 

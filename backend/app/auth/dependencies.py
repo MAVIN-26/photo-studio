@@ -1,25 +1,16 @@
 import secrets
-from collections.abc import Iterator
 from typing import Annotated, NoReturn
 from urllib.parse import urlsplit
 
 from fastapi import Depends, HTTPException, Request
-from sqlalchemy.orm import Session
 
 from app.auth.models import AuthSession, User
 from app.auth.service import COOKIE_NAME, find_session
+from app.dependencies import Database
 
 
 def fail(status: int, code: str, message: str) -> NoReturn:
     raise HTTPException(status, detail={"code": code, "message": message, "details": []})
-
-
-def get_db(request: Request) -> Iterator[Session]:
-    with Session(request.app.state.engine, expire_on_commit=False) as db:
-        yield db
-
-
-Database = Annotated[Session, Depends(get_db)]
 
 
 def optional_user(request: Request, db: Database) -> User | None:
