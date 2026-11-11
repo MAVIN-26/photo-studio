@@ -1,12 +1,13 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 
 from app.auth.dependencies import optional_user, require_admin
 from app.auth.models import User
+from app.bookings.service import list_bookings, owned_booking, studio_now
 from app.dependencies import Database
 from app.rooms.models import Room
 from app.rooms.service import get_room, list_rooms
@@ -36,17 +37,63 @@ def room_page(room_id: str, request: Request, user: OptionalUser, db: Database):
         request=request,
         name="room.html" if room else "room_not_found.html",
         status_code=200 if room else 404,
-        context={"user": user, "room": room},
+        context={"user": user, "room": room, "today": studio_now().date()},
     )
 
 
 @router.get("/login", response_class=HTMLResponse)
 @router.get("/register", response_class=HTMLResponse)
-def auth_page(request: Request, user: OptionalUser):
+def auth_page(request: Request, user: OptionalUser, room: str | None = None):
+    try:
+        room_id = UUID(room) if room else None
+    except ValueError:
+        room_id = None
+    booking_return = f"/rooms/{room_id}#booking" if room_id else None
     if user:
-        return RedirectResponse("/admin" if user.role == "admin" else "/", status_code=303)
+        target = "/admin" if user.role == "admin" else booking_return or "/"
+        return RedirectResponse(target, status_code=303)
     return request.app.state.templates.TemplateResponse(
-        request=request, name="auth.html", context={"register": request.url.path == "/register"}
+        request=request,
+        name="auth.html",
+        context={
+            "register": request.url.path == "/register",
+            "booking_return": booking_return,
+            "auth_query": f"?room={room_id}" if room_id else "",
+        },
+    )
+
+
+@router.get("/my/bookings", response_class=HTMLResponse)
+def my_bookings(
+    request: Request,
+    user: OptionalUser,
+    db: Database,
+    offset: Annotated[int, Query(ge=0)] = 0,
+):
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if user.role != "client":
+        return RedirectResponse("/admin", status_code=303)
+    items, total = list_bookings(db, user.id, scope="all", status=None, limit=20, offset=offset)
+    rooms = {room.id: room.name for room in list_rooms(db)}
+    return request.app.state.templates.TemplateResponse(
+        request=request,
+        name="my_bookings.html",
+        context={"user": user, "items": items, "rooms": rooms, "offset": offset, "total": total},
+    )
+
+
+@router.get("/my/bookings/{booking_id}", response_class=HTMLResponse)
+def my_booking(booking_id: UUID, request: Request, user: OptionalUser, db: Database):
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    entry = owned_booking(db, user.id, booking_id) if user.role == "client" else None
+    room = get_room(db, entry.room_id) if entry else None
+    return request.app.state.templates.TemplateResponse(
+        request=request,
+        name="my_booking.html",
+        status_code=200 if entry else 404,
+        context={"user": user, "entry": entry, "room": room},
     )
 
 

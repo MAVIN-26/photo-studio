@@ -1,7 +1,10 @@
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 
+from app.bookings.schemas import Availability
+from app.bookings.service import availability
 from app.dependencies import Database
 from app.rooms.schemas import RoomListResponse, RoomResponse
 from app.rooms.service import get_room, list_rooms
@@ -23,3 +26,8 @@ def room_detail(room_id: UUID, db: Database):
             detail={"code": "ROOM_NOT_FOUND", "message": "Зал не найден.", "details": []},
         )
     return room
+
+
+@router.get("/{room_id}/availability", response_model=Availability)
+def room_availability(room_id: UUID, date: date, db: Database):
+    return availability(db, room_detail(room_id, db), date)

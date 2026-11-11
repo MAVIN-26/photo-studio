@@ -1,5 +1,10 @@
 {% extends "catalog_base.html" %}
 {% block title %}{{ room.name }} — Lumen Studio{% endblock %}
+{% block head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', path='/booking.css') }}">
+  <script type="module" src="{{ url_for('static', path='/booking.js') }}"></script>
+{% endblock %}
 {% block catalog_content %}
 <main class="room-content" id="main-content">
   <a class="room-back" href="/">{{ icon('arrow') }}Все залы</a>
@@ -13,7 +18,7 @@
     </div>
     <div class="room-info">
       <h1 id="room-title">{{ room.name }}</h1>
-      <p class="room-price"><strong>{{ room.hourly_price_minor | price }} ₽</strong><span>за час</span></p>
+      <p class="room-price"><strong data-hourly-price>{{ room.hourly_price_minor | price }} ₽</strong><span>за час</span></p>
       {% if room.description %}<p class="room-description">{{ room.description }}</p>{% endif %}
       <section class="room-conditions" aria-labelledby="conditions-title">
         <h2 id="conditions-title">Условия аренды</h2>
@@ -25,5 +30,6 @@
       </section>
     </div>
   </article>
+  {% include "components/booking_form.html" %}
 </main>
 {% endblock %}

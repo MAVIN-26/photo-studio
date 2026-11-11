@@ -1,0 +1,24 @@
+{% extends "catalog_base.html" %}
+{% block title %}Бронь — LumenBook{% endblock %}
+{% block catalog_content %}
+<main class="catalog-content" id="main-content">
+  {% if entry %}
+  <a href="/my/bookings" class="room-back">{{ icon('arrow') }}Мои брони</a>
+  <section class="surface">
+    <h1>Бронь зала «{{ room.name }}»</h1>
+    {% include "components/booking_status.html" %}
+    <dl class="account-details">
+      <dt>Дата</dt><dd>{{ entry.starts_at | studio_format('%d.%m.%Y') }}</dd>
+      <dt>Время</dt><dd>{{ entry.starts_at | studio_format('%H:%M') }}–{{ entry.ends_at | studio_format('%H:%M') }} МСК</dd>
+      <dt>Итого</dt><dd>{{ entry.total_price_minor | price }} ₽</dd>
+      <dt>Имя</dt><dd>{{ entry.contact_name }}</dd>
+      <dt>Телефон</dt><dd>{{ entry.contact_phone }}</dd>
+      {% if entry.comment %}<dt>Комментарий</dt><dd>{{ entry.comment }}</dd>{% endif %}
+    </dl>
+    <a href="/rooms/{{ room.id }}#booking">Посмотреть время в зале</a>
+  </section>
+  {% else %}
+  <section class="catalog-empty"><h1>Бронь не найдена</h1><a class="button primary" href="/my/bookings">Мои брони</a></section>
+  {% endif %}
+</main>
+{% endblock %}
