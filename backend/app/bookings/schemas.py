@@ -10,13 +10,23 @@ BookingStatus = Literal["pending_payment", "paid", "confirmed", "cancelled"]
 BookingScope = Literal["all", "upcoming", "past"]
 
 
-class CreateBooking(BaseModel):
+class BookingInterval(BaseModel):
+    starts_at: AwareDatetime
+    ends_at: AwareDatetime
+
+    @field_validator("starts_at", "ends_at", mode="before")
+    @classmethod
+    def require_timestamp_string(cls, value: object) -> object:
+        if not isinstance(value, str) or "T" not in value:
+            raise ValueError("Укажите дату и время в ISO 8601 с часовым смещением")
+        return value
+
+
+class CreateBooking(BookingInterval):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     room_id: UUID
     room_version: int = Field(ge=1, strict=True)
-    starts_at: AwareDatetime
-    ends_at: AwareDatetime
     contact_name: str = Field(min_length=1, max_length=100)
     contact_phone: str = Field(max_length=64)
     comment: str = Field(default="", max_length=1000)
@@ -26,12 +36,15 @@ class CreateBooking(BaseModel):
     def validate_phone(cls, value: str) -> str:
         return normalize_phone(value)
 
-    @field_validator("starts_at", "ends_at", mode="before")
-    @classmethod
-    def require_timestamp_string(cls, value: object) -> object:
-        if not isinstance(value, str) or "T" not in value:
-            raise ValueError("Укажите дату и время в ISO 8601 с часовым смещением")
-        return value
+
+class BookingVersion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: int = Field(ge=1, strict=True)
+
+
+class RescheduleBooking(BookingInterval, BookingVersion):
+    pass
 
 
 class Slot(BaseModel):
@@ -76,6 +89,10 @@ class BookingResponse(BaseModel):
 
 class CreatedBooking(BookingResponse):
     message: str = "Бронь создана. Время закреплено за вами."
+
+
+class ChangedBooking(BookingResponse):
+    message: str
 
 
 class BookingList(BaseModel):

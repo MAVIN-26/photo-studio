@@ -1,0 +1,40 @@
+{% extends "catalog_base.html" %}
+{% block title %}Перенос брони — LumenBook{% endblock %}
+{% block head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', path='/booking.css') }}">
+  <script type="module" src="{{ url_for('static', path='/booking.js') }}"></script>
+{% endblock %}
+{% block catalog_content %}
+<main class="catalog-content" id="main-content">
+  <section class="booking" id="booking" data-room="{{ room.id }}" data-today="{{ today }}"
+      data-booking-id="{{ entry.id }}" data-version="{{ entry.version }}" data-duration="{{ duration_hours }}"
+      data-original-start="{{ entry.starts_at.isoformat() }}" data-original-day="{{ entry.starts_at | studio_format('%Y-%m-%d') }}"
+      data-original-total="{{ entry.total_price_minor }}">
+    <a class="room-back" href="/my/bookings/{{ entry.id }}">{{ icon('arrow') }}К брони</a>
+    <h1>Перенос брони</h1>
+    <div class="surface">
+      <strong>Сейчас</strong>
+      <p>«{{ room.name }}» · {{ entry.starts_at | studio_format('%d.%m.%Y, %H:%M') }}–{{ entry.ends_at | studio_format('%H:%M') }} МСК</p>
+      <p>{{ duration_hours }} ч · {{ entry.total_price_minor | price }} ₽ · {% include "components/booking_status.html" %}</p>
+    </div>
+    {% set grid_hint = 'Выберите начало. Сетка выделит ' ~ duration_hours ~ ' ч подряд.' %}
+    {% include "components/booking_grid.html" %}
+    <div class="booking-summary">
+      <div aria-live="polite"><span class="booking-help">Новое время</span><strong class="booking-selected-time">Выберите начало</strong></div>
+      <div><span class="booking-help">Итого</span><strong class="booking-total">{{ entry.total_price_minor | price }} ₽</strong></div>
+      <button class="button primary booking-continue" type="button" disabled>Продолжить</button>
+    </div>
+    <p class="form-error booking-error" role="alert" hidden></p>
+    <form class="booking-form surface" hidden>
+      <h2 tabindex="-1">Подтвердите перенос</h2>
+      <p>Было · {{ entry.starts_at | studio_format('%d.%m.%Y, %H:%M') }}–{{ entry.ends_at | studio_format('%H:%M') }} МСК</p>
+      <p>Станет · <span class="booking-form-summary"></span></p>
+      <p class="form-error booking-form-error" role="alert" hidden></p>
+      <p class="booking-recovery" hidden><a href="/my/bookings/{{ entry.id }}">Проверить бронь</a></p>
+      <button class="button primary booking-submit" type="submit">Перенести бронь</button>
+    </form>
+    <noscript><p>Для выбора времени включите JavaScript.</p></noscript>
+  </section>
+</main>
+{% endblock %}

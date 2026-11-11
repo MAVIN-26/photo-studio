@@ -1,7 +1,12 @@
 {% extends "catalog_base.html" %}
 {% block title %}Бронь — LumenBook{% endblock %}
+{% block head %}
+  {{ super() }}
+  {% include "components/booking_action_assets.html" %}
+{% endblock %}
 {% block catalog_content %}
 <main class="catalog-content" id="main-content">
+  <p class="booking-notice" data-booking-notice role="status" hidden></p>
   {% if entry %}
   <a href="/my/bookings" class="room-back">{{ icon('arrow') }}Мои брони</a>
   <section class="surface">
@@ -15,6 +20,8 @@
       <dt>Телефон</dt><dd>{{ entry.contact_phone }}</dd>
       {% if entry.comment %}<dt>Комментарий</dt><dd>{{ entry.comment }}</dd>{% endif %}
     </dl>
+    {% set booking_room_name = room.name %}
+    {% include "components/booking_actions.html" %}
     <a href="/rooms/{{ room.id }}#booking">Посмотреть время в зале</a>
   </section>
   {% else %}

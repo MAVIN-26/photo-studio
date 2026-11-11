@@ -1,13 +1,20 @@
 {% extends "catalog_base.html" %}
 {% block title %}Мои брони — LumenBook{% endblock %}
+{% block head %}
+  {{ super() }}
+  {% include "components/booking_action_assets.html" %}
+{% endblock %}
 {% block catalog_content %}
 <main class="catalog-content" id="main-content">
   <h1>Мои брони</h1>
+  <p class="booking-notice" data-booking-notice role="status" hidden></p>
   {% for entry in items %}
     <article class="surface">
       <h2><a href="/my/bookings/{{ entry.id }}">{{ rooms[entry.room_id] }}</a></h2>
       <p>{{ entry.starts_at | studio_format('%d.%m.%Y, %H:%M') }}–{{ entry.ends_at | studio_format('%H:%M') }} МСК</p>
       <p>{{ entry.total_price_minor | price }} ₽ · {% include "components/booking_status.html" %}</p>
+      {% set booking_room_name = rooms[entry.room_id] %}
+      {% include "components/booking_actions.html" %}
     </article>
   {% else %}
     <p>На этой странице нет броней.</p>

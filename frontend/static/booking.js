@@ -1,3 +1,5 @@
+import { getJson, openBookingPage } from './booking-http.js';
+
 const booking = document.querySelector('#booking');
 const room = booking.dataset.room;
 const today = booking.dataset.today;
@@ -11,6 +13,12 @@ const retry = booking.querySelector('.booking-retry');
 const error = booking.querySelector('.booking-error');
 const formError = booking.querySelector('.booking-form-error');
 const recovery = booking.querySelector('.booking-recovery');
+const bookingId = booking.dataset.bookingId;
+const duration = Number(booking.dataset.duration);
+const bookingPath = '/my/bookings/' + bookingId;
+const availabilityUrl = bookingId
+  ? '/api/v1/bookings/' + bookingId + '/availability'
+  : '/api/v1/rooms/' + room + '/availability';
 
 const calendarDate = new Intl.DateTimeFormat('ru-RU', {
   timeZone: 'UTC', weekday: 'short', month: 'long', day: 'numeric',
@@ -34,17 +42,6 @@ function message(element, value = '') {
   element.hidden = !value;
 }
 
-async function getJson(url, options) {
-  const response = await fetch(url, options);
-  const body = await response.json();
-  if (response.ok) return body;
-  const failure = new Error(body.error?.message || 'Не удалось выполнить запрос.');
-  failure.status = response.status;
-  failure.code = body.error?.code;
-  failure.details = body.error?.details;
-  throw failure;
-}
-
 function button(label, action) {
   const element = document.createElement('button');
   element.type = 'button';
@@ -64,9 +61,10 @@ function displayDate(value) {
 function renderSummary() {
   const interval = selected.length
     ? displayTime(selected[0].starts_at, selected.at(-1).ends_at)
-    : 'Выберите один или несколько часов';
-  const total = selected.length
-    ? currency.format(selected.length * availability.hourly_price_minor / 100) : '—';
+    : bookingId ? 'Выберите начало' : 'Выберите один или несколько часов';
+  const total = bookingId
+    ? currency.format(Number(booking.dataset.originalTotal) / 100)
+    : selected.length ? currency.format(selected.length * availability.hourly_price_minor / 100) : '—';
   booking.querySelector('.booking-selected-time').textContent = interval;
   booking.querySelector('.booking-total').textContent = total;
   if (next) next.disabled = !selected.length || submitting || outcomeUnknown;
@@ -85,6 +83,13 @@ function paintSlots() {
 
 function chooseSlot(slot) {
   if (submitting || outcomeUnknown) return;
+  if (bookingId) {
+    selected = rescheduleRange(availability.slots.indexOf(slot));
+    form.hidden = true;
+    message(error);
+    paintSlots();
+    return;
+  }
   const position = selected.indexOf(slot);
   if (position >= 0) selected = position === 0 ? selected.slice(1) : selected.slice(0, position);
   else if (selected.at(-1)?.ends_at === slot.starts_at) selected.push(slot);
@@ -93,6 +98,13 @@ function chooseSlot(slot) {
   if (form) form.hidden = true;
   message(error);
   paintSlots();
+}
+
+function rescheduleRange(index) {
+  const range = availability.slots.slice(index, index + duration);
+  if (range.length !== duration || !range.every(slot => slot.available)) return [];
+  if (Date.parse(range[0].starts_at) === Date.parse(booking.dataset.originalStart)) return [];
+  return range;
 }
 
 function paintDates() {
@@ -104,13 +116,16 @@ function paintDates() {
 
 function renderSlots() {
   const now = Date.parse(availability.server_now);
-  slots.replaceChildren(...availability.slots.map(slot => {
+  slots.replaceChildren(...availability.slots.map((slot, index) => {
     const element = button(displayTime(slot.starts_at, slot.ends_at), () => chooseSlot(slot));
     const status = document.createElement('small');
-    status.textContent = slot.available ? 'Свободно' : Date.parse(slot.starts_at) <= now ? 'Прошло' : 'Занято';
+    const fits = !bookingId || rescheduleRange(index).length > 0;
+    status.textContent = slot.available
+      ? (fits ? 'Свободно' : 'Недоступно для начала')
+      : Date.parse(slot.starts_at) <= now ? 'Прошло' : 'Занято';
     element.dataset.state = slot.available ? 'free' : Date.parse(slot.starts_at) <= now ? 'past' : 'busy';
     element.append(status);
-    element.disabled = !slot.available;
+    element.disabled = !slot.available || !fits;
     return element;
   }));
   paintSlots();
@@ -129,11 +144,11 @@ async function loadDay(value, draft, feedback = '') {
   renderSummary();
   message(error, 'Загружаем время…');
   try {
-    const result = await getJson('/api/v1/rooms/' + room + '/availability?date=' + value);
+    const result = await getJson(availabilityUrl + '?date=' + value);
     if (request !== requestNumber) return;
     availability = result;
-    document.querySelector('[data-hourly-price]').textContent =
-      currency.format(result.hourly_price_minor / 100);
+    const hourlyPrice = document.querySelector('[data-hourly-price]');
+    if (hourlyPrice) hourlyPrice.textContent = currency.format(result.hourly_price_minor / 100);
     if (draft) {
       const first = result.slots.findIndex(slot => slot.starts_at === draft.starts_at);
       const last = result.slots.findIndex(slot => slot.ends_at === draft.ends_at);
@@ -149,10 +164,16 @@ async function loadDay(value, draft, feedback = '') {
       }
     }
     renderSlots();
-    if (!result.slots.some(slot => slot.available)) feedback ||= 'На эту дату нет свободного времени.';
+    if (![...slots.children].some(element => !element.disabled)) {
+      feedback ||= 'На эту дату нет подходящего времени.';
+    }
     message(error, feedback);
   } catch (failure) {
     if (request !== requestNumber) return;
+    if (bookingId && failure.status === 409) {
+      openBookingPage(bookingPath, failure.message);
+      return;
+    }
     retry.hidden = false;
     message(error, failure.status ? failure.message : 'Не удалось загрузить время.');
   } finally {
@@ -186,7 +207,7 @@ next?.addEventListener('click', () => {
   }
   message(formError);
   form.hidden = false;
-  form.querySelector('input').focus();
+  form.querySelector(bookingId ? 'h2' : 'input').focus();
 });
 
 form?.addEventListener('submit', async event => {
@@ -194,8 +215,10 @@ form?.addEventListener('submit', async event => {
   if (submitting || outcomeUnknown || !selected.length) return;
   const draft = currentDraft();
   const fields = Object.fromEntries(new FormData(form));
-  const body = { ...fields, room_id: room, room_version: draft.room_version,
-    starts_at: draft.starts_at, ends_at: draft.ends_at };
+  const interval = { starts_at: draft.starts_at, ends_at: draft.ends_at };
+  const body = bookingId
+    ? { ...interval, version: Number(booking.dataset.version) }
+    : { ...fields, ...interval, room_id: room, room_version: draft.room_version };
   const submit = form.querySelector('.booking-submit');
   message(formError);
   submitting = true;
@@ -206,22 +229,26 @@ form?.addEventListener('submit', async event => {
   try {
     const csrf = await getJson('/api/v1/auth/csrf');
     sent = true;
-    const result = await getJson('/api/v1/bookings', {
+    const result = await getJson(bookingId ? '/api/v1/bookings/' + bookingId + '/reschedule' : '/api/v1/bookings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf.csrf_token },
       body: JSON.stringify(body),
     });
-    window.location.assign('/my/bookings/' + result.id);
+    if (bookingId) openBookingPage(bookingPath, result.message);
+    else window.location.assign('/my/bookings/' + result.id);
   } catch (failure) {
     if (failure.status === 401) {
-      goToLogin();
+      if (bookingId) location.assign('/login');
+      else goToLogin();
     } else if (failure.code === 'SLOT_UNAVAILABLE' || failure.code === 'INVALID_TIME_RANGE') {
       await loadDay(day, null, failure.message);
     } else if (failure.code === 'ROOM_SETTINGS_CHANGED') {
       await loadDay(day, draft, failure.message);
+    } else if (bookingId && failure.status === 409) {
+      openBookingPage(bookingPath, failure.message);
     } else if (sent && (!failure.status || failure.status >= 500)) {
       outcomeUnknown = true;
-      message(formError, 'Не удалось получить результат. Проверьте список своих броней.');
+      message(formError, 'Не удалось получить результат. Проверьте актуальные данные брони.');
       recovery.hidden = false;
     } else {
       const field = failure.details?.find(item => form.elements.namedItem(item.field));
@@ -256,15 +283,18 @@ const dateButtons = Array.from({ length: 31 }, (_, offset) => {
 dates.append(...dateButtons);
 
 let draft;
-try {
-  draft = JSON.parse(sessionStorage.getItem(draftKey) || 'null');
-  sessionStorage.removeItem(draftKey);
-} catch {
-  draft = null;
+if (!bookingId) {
+  try {
+    draft = JSON.parse(sessionStorage.getItem(draftKey) || 'null');
+    sessionStorage.removeItem(draftKey);
+  } catch {
+    draft = null;
+  }
 }
-const restoredDay = dateButtons.find(element => element.dataset.date === draft?.date);
+const initialDay = bookingId ? booking.dataset.originalDay : draft?.date;
+const restoredDay = dateButtons.find(element => element.dataset.date === initialDay);
 if (restoredDay) {
-  loadDay(draft.date, draft);
+  loadDay(initialDay, bookingId ? null : draft);
   dates.scrollLeft = restoredDay.offsetLeft - dates.firstElementChild.offsetLeft;
 } else {
   loadDay(today, null, draft ? 'Сохранённая дата больше недоступна.' : '');
