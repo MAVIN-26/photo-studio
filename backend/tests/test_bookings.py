@@ -166,3 +166,139 @@ def test_availability_includes_day_thirty_but_not_day_thirty_one(app):
             assert response.status_code == status
             if status == 422:
                 assert response.json()["error"]["code"] == "DATE_OUT_OF_RANGE"
+
+
+def future_booking(client, headers, *, start=13, end=15):
+    day = DAY + timedelta(days=2)
+    body = booking_body(
+        client, starts_at=f"{day}T{start:02}:00:00+03:00", ends_at=f"{day}T{end:02}:00:00+03:00"
+    )
+    response = client.post("/api/v1/bookings", json=body, headers=headers)
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def test_concurrent_pay_only_records_one_payment(app, database):
+    with TestClient(app) as client, TestClient(app) as other:
+        headers = register(client, "pay@example.ru")
+        entry = future_booking(client, headers)
+        url = f"/api/v1/bookings/{entry['id']}/pay"
+        assert set(entry["allowed_actions"]) == {"pay", "cancel", "reschedule"}
+        assert client.post(url, json={"version": 1}).status_code == 403
+        # Две сессии одного клиента проверяют блокировку самой брони.
+        csrf = other.get("/api/v1/auth/csrf").json()["csrf_token"]
+        login = other.post(
+            "/api/v1/auth/login",
+            headers={"X-CSRF-Token": csrf},
+            json={"identifier": "pay@example.ru", "password": "Demo-password-123"},
+        )
+        assert login.status_code == 200
+        other_headers = {"X-CSRF-Token": login.json()["csrf_token"]}
+        with ThreadPoolExecutor(2) as executor:
+            first = executor.submit(client.post, url, json={"version": 1}, headers=headers)
+            second = executor.submit(other.post, url, json={"version": 1}, headers=other_headers)
+            results = [first.result(), second.result()]
+        assert sorted(response.status_code for response in results) == [200, 409]
+        paid = next(response.json() for response in results if response.status_code == 200)
+        stale = next(response.json() for response in results if response.status_code == 409)
+        assert stale["error"]["code"] == "VERSION_CONFLICT"
+        assert paid["status"] == "paid" and paid["paid_at"] and paid["version"] == 2
+        assert set(paid["allowed_actions"]) == {"cancel", "reschedule"}
+        repeat = client.post(url, json={"version": 2}, headers=headers)
+        assert repeat.status_code == 409
+        assert repeat.json()["error"]["code"] == "INVALID_BOOKING_STATE"
+        with database[0].connect() as connection:
+            events = connection.scalars(select(EventLog.event_type)).all()
+        assert events.count("booking_paid") == 1
+        assert events.count("notification_simulated") == 2
+
+
+def test_cancel_paid_booking_at_deadline_and_release_slot(app, monkeypatch):
+    with TestClient(app) as client:
+        headers = register(client, "cancel@example.ru")
+        entry = future_booking(client, headers)
+        url = f"/api/v1/bookings/{entry['id']}"
+        paid = client.post(url + "/pay", json={"version": 1}, headers=headers).json()
+        starts_at = datetime.fromisoformat(entry["starts_at"])
+        cutoff = (starts_at - timedelta(hours=24)).astimezone(service.STUDIO_ZONE)
+        monkeypatch.setattr(service, "studio_now", lambda: cutoff + timedelta(microseconds=1))
+        assert client.get(url).json()["allowed_actions"] == []
+        rejected = client.post(url + "/cancel", json={"version": 2}, headers=headers)
+        assert rejected.json()["error"]["code"] == "CANCELLATION_DEADLINE_PASSED"
+
+        monkeypatch.setattr(service, "studio_now", lambda: cutoff)
+        response = client.post(url + "/cancel", json={"version": 2}, headers=headers)
+        assert response.status_code == 200
+        cancelled = response.json()
+        assert cancelled["status"] == "cancelled" and cancelled["version"] == 3
+        assert datetime.fromisoformat(cancelled["paid_at"]) == datetime.fromisoformat(
+            paid["paid_at"]
+        )
+        assert cancelled["allowed_actions"] == []
+        replacement = future_booking(client, headers)
+        assert replacement["id"] != entry["id"]
+
+
+def test_reschedule_preserves_terms_and_rolls_back_conflict(app, database, monkeypatch):
+    with TestClient(app) as client, TestClient(app) as other:
+        headers = register(client, "move@example.ru")
+        other_headers = register(other, "neighbor@example.ru")
+        entry = future_booking(client, headers)
+        neighbor = future_booking(other, other_headers, start=17, end=19)
+        url = f"/api/v1/bookings/{entry['id']}"
+        paid = client.post(url + "/pay", json={"version": 1}, headers=headers).json()
+        day = DAY + timedelta(days=2)
+        public_url = f"/api/v1/rooms/{entry['room_id']}/availability?date={day}"
+        private_url = url + f"/availability?date={day}"
+        assert not client.get(public_url).json()["slots"][4]["available"]
+        assert client.get(private_url).json()["slots"][4]["available"]
+        assert other.get(private_url).status_code == 404
+        assert (
+            other.post(url + "/cancel", json={"version": 2}, headers=other_headers).status_code
+            == 404
+        )
+
+        with database[0].begin() as connection:
+            connection.execute(update(Room).values(hourly_price_minor=350_000, version=2))
+
+        def move(version, start, end):
+            return client.post(
+                url + "/reschedule",
+                headers=headers,
+                json={
+                    "version": version,
+                    "starts_at": f"{day}T{start:02}:00:00+03:00",
+                    "ends_at": f"{day}T{end:02}:00:00+03:00",
+                },
+            )
+
+        cutoff = datetime.combine(day, datetime.min.time(), service.STUDIO_ZONE).replace(hour=13)
+        cutoff -= timedelta(hours=24)
+        monkeypatch.setattr(service, "studio_now", lambda: cutoff + timedelta(microseconds=1))
+        assert move(2, 14, 16).json()["error"]["code"] == "RESCHEDULE_DEADLINE_PASSED"
+        monkeypatch.setattr(service, "studio_now", lambda: cutoff)
+        assert move(2, 14, 15).json()["error"]["code"] == "DURATION_CHANGE_NOT_ALLOWED"
+        shifted = move(2, 14, 16)
+        assert shifted.status_code == 200, shifted.text
+        moved = shifted.json()
+        assert moved["id"] == entry["id"] and moved["version"] == 3
+        assert moved["status"] == "paid"
+        assert datetime.fromisoformat(moved["paid_at"]) == datetime.fromisoformat(paid["paid_at"])
+        assert moved["total_price_minor"] == entry["total_price_minor"]
+        assert moved["hourly_price_minor"] == entry["hourly_price_minor"]
+
+        conflict = move(3, 16, 18)
+        assert conflict.status_code == 409
+        assert conflict.json()["error"]["code"] == "SLOT_UNAVAILABLE"
+        current = client.get(url).json()
+        assert datetime.fromisoformat(current["starts_at"]) == datetime.fromisoformat(
+            moved["starts_at"]
+        )
+        assert datetime.fromisoformat(current["ends_at"]) == datetime.fromisoformat(
+            moved["ends_at"]
+        )
+        assert current["version"] == 3
+        assert other.get(f"/api/v1/bookings/{neighbor['id']}").json()["version"] == 1
+        with database[0].connect() as connection:
+            events = connection.scalars(select(EventLog.event_type)).all()
+        assert events.count("booking_rescheduled") == 1

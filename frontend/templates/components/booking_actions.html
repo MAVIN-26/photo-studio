@@ -1,0 +1,29 @@
+{% set available = actions[entry.id] %}
+{% if available %}
+<div class="booking-actions" data-booking-id="{{ entry.id }}" data-version="{{ entry.version }}">
+  {% if 'pay' in available %}
+  <div>
+    <button type="button" class="button primary compact" data-pay>Оплатить {{ entry.total_price_minor | price }} ₽</button>
+    <p class="booking-help">Демонстрационная оплата. Деньги не списываются.</p>
+  </div>
+  {% endif %}
+  <div class="booking-secondary-actions">
+    {% if 'reschedule' in available %}<a class="text-button" href="/my/bookings/{{ entry.id }}/reschedule">Перенести</a>{% endif %}
+    {% if 'cancel' in available %}<button type="button" class="text-button" data-cancel>Отменить бронь</button>{% endif %}
+  </div>
+  <p class="form-error" role="alert" hidden></p>
+  {% if 'cancel' in available %}
+  <dialog class="booking-dialog" aria-label="Отменить бронь?">
+    <form method="dialog">
+      <h2>Отменить бронь?</h2>
+      <p>«{{ booking_room_name }}» · {{ entry.starts_at | studio_format('%d.%m.%Y, %H:%M') }}–{{ entry.ends_at | studio_format('%H:%M') }} МСК</p>
+      <p>Время освободится, и его смогут забронировать другие клиенты.</p>
+      <div class="booking-secondary-actions">
+        <button class="button compact" value="keep" autofocus>Не отменять</button>
+        <button class="button compact primary" value="confirm">Отменить бронь</button>
+      </div>
+    </form>
+  </dialog>
+  {% endif %}
+</div>
+{% endif %}

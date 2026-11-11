@@ -7,7 +7,8 @@ from sqlalchemy import select
 
 from app.auth.dependencies import optional_user, require_admin
 from app.auth.models import User
-from app.bookings.service import list_bookings, owned_booking, studio_now
+from app.bookings import service
+from app.bookings.service import HOUR, allowed_actions, list_bookings, owned_booking
 from app.dependencies import Database
 from app.rooms.models import Room
 from app.rooms.service import get_room, list_rooms
@@ -37,7 +38,7 @@ def room_page(room_id: str, request: Request, user: OptionalUser, db: Database):
         request=request,
         name="room.html" if room else "room_not_found.html",
         status_code=200 if room else 404,
-        context={"user": user, "room": room, "today": studio_now().date()},
+        context={"user": user, "room": room, "today": service.studio_now().date()},
     )
 
 
@@ -76,10 +77,18 @@ def my_bookings(
         return RedirectResponse("/admin", status_code=303)
     items, total = list_bookings(db, user.id, scope="all", status=None, limit=20, offset=offset)
     rooms = {room.id: room.name for room in list_rooms(db)}
+    now = service.studio_now()
     return request.app.state.templates.TemplateResponse(
         request=request,
         name="my_bookings.html",
-        context={"user": user, "items": items, "rooms": rooms, "offset": offset, "total": total},
+        context={
+            "user": user,
+            "items": items,
+            "rooms": rooms,
+            "offset": offset,
+            "total": total,
+            "actions": {entry.id: allowed_actions(entry, now) for entry in items},
+        },
     )
 
 
@@ -93,7 +102,40 @@ def my_booking(booking_id: UUID, request: Request, user: OptionalUser, db: Datab
         request=request,
         name="my_booking.html",
         status_code=200 if entry else 404,
-        context={"user": user, "entry": entry, "room": room},
+        context={
+            "user": user,
+            "entry": entry,
+            "room": room,
+            "actions": {entry.id: allowed_actions(entry, service.studio_now())} if entry else {},
+        },
+    )
+
+
+@router.get("/my/bookings/{booking_id}/reschedule", response_class=HTMLResponse)
+def reschedule_page(booking_id: UUID, request: Request, user: OptionalUser, db: Database):
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    entry = owned_booking(db, user.id, booking_id) if user.role == "client" else None
+    if entry is None:
+        return request.app.state.templates.TemplateResponse(
+            request=request,
+            name="my_booking.html",
+            status_code=404,
+            context={"user": user, "entry": None},
+        )
+    now = service.studio_now()
+    if "reschedule" not in allowed_actions(entry, now):
+        return RedirectResponse(f"/my/bookings/{booking_id}", status_code=303)
+    return request.app.state.templates.TemplateResponse(
+        request=request,
+        name="reschedule.html",
+        context={
+            "user": user,
+            "entry": entry,
+            "room": get_room(db, entry.room_id),
+            "today": now.date(),
+            "duration_hours": (entry.ends_at - entry.starts_at) // HOUR,
+        },
     )
 
 

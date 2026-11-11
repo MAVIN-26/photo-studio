@@ -1,16 +1,6 @@
 <section class="booking" id="booking" data-room="{{ room.id }}" data-today="{{ today }}">
-  <fieldset class="booking-selection">
-    <legend class="booking-heading">Дата</legend>
-    <div class="booking-dates" aria-label="Дата съёмки"></div>
-    <p class="booking-help">Бронировать можно на 30 дней вперёд.</p>
-    <div class="booking-time-heading"><h2>Время</h2><span class="booking-date-label"></span></div>
-    <ul class="booking-legend">
-      <li>Свободно</li><li>Выбрано</li><li>Занято</li><li>Прошло</li>
-    </ul>
-    <div class="booking-slots" aria-label="Время съёмки"></div>
-    <button class="text-button booking-retry" type="button" hidden>Обновить время</button>
-    <p class="booking-help">Можно выбрать несколько часов подряд. Последние 5 минут часа отводятся на выход и осмотр зала.</p>
-  </fieldset>
+  {% set grid_hint = 'Можно выбрать несколько часов подряд. Последние 5 минут часа отводятся на выход и осмотр зала.' %}
+  {% include "components/booking_grid.html" %}
   <div class="booking-summary">
     <div aria-live="polite"><span class="booking-help">Выбранное время</span><strong class="booking-selected-time">Выберите один или несколько часов</strong></div>
     <div aria-live="polite"><span class="booking-help">Итого</span><strong class="booking-total">—</strong></div>

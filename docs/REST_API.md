@@ -84,6 +84,7 @@ HTML-формы входа и регистрации принимают необ
 | POST | `/bookings` | CreateBooking | `201`: Booking со статусом `pending_payment` |
 | GET | `/bookings?scope=upcoming&limit=20&offset=0` | Необязательные `scope`, `status` | `200`: список Booking |
 | GET | `/bookings/{booking_id}` | Без тела | `200`: Booking |
+| GET | `/bookings/{booking_id}/availability?date=2026-11-20` | Дата для переноса | `200`: сетка зала с учётом собственной брони |
 | POST | `/bookings/{booking_id}/pay` | `version` | `200`: Booking со статусом `paid` |
 | POST | `/bookings/{booking_id}/cancel` | `version` | `200`: Booking со статусом `cancelled` |
 | POST | `/bookings/{booking_id}/reschedule` | `version`, `starts_at`, `ends_at` | `200`: обновлённая Booking |
@@ -114,6 +115,7 @@ HTML-формы входа и регистрации принимают необ
 - `cancel` и `reschedule` разрешены из любого неотменённого статуса при остатке **не меньше 24 часов**. При меньшем остатке — `409 CANCELLATION_DEADLINE_PASSED` или `409 RESCHEDULE_DEADLINE_PASSED`.
 - При переносе длительность сохраняется, зал не меняется, исходная стоимость сохраняется. Нарушение длительности — `422 DURATION_CHANGE_NOT_ALLOWED`.
 - Перенос на занятый интервал даёт `409 SLOT_UNAVAILABLE`, исходная бронь сохраняется.
+- Сетка переноса доступна владельцу, когда разрешён перенос. При расчёте она исключает только переносимую запись, поэтому новый интервал может частично совпадать с текущим.
 - Успешный `cancel` освобождает время, но сохраняет запись и `paid_at`. Возврат денег не имитируется.
 - Создание не подтверждает бронь автоматически. Кнопка «Оплатить» меняет только состояние оплаты; подтверждение выполняет администратор.
 
