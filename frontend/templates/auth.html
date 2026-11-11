@@ -8,10 +8,10 @@
       <p>Бронирование залов фотостудии</p>
     </header>
     <nav class="auth-tabs" aria-label="Доступ к аккаунту">
-      <a href="/login" {% if not register %}aria-current="page"{% endif %}>Вход</a>
-      <a href="/register" {% if register %}aria-current="page"{% endif %}>Регистрация</a>
+      <a href="/login{{ auth_query }}" {% if not register %}aria-current="page"{% endif %}>Вход</a>
+      <a href="/register{{ auth_query }}" {% if register %}aria-current="page"{% endif %}>Регистрация</a>
     </nav>
-    <form id="auth-form" data-mode="{{ 'register' if register else 'login' }}" novalidate>
+    <form id="auth-form" data-mode="{{ 'register' if register else 'login' }}" data-booking-return="{{ booking_return or '' }}" novalidate>
       {% if register %}
       <div class="field">
         <label for="name">Имя</label>
@@ -48,7 +48,7 @@
       <button class="button primary submit-button" type="submit" disabled>{{ 'Зарегистрироваться' if register else 'Войти' }}</button>
       <noscript><p class="field-error">Для входа и регистрации включите JavaScript.</p></noscript>
     </form>
-    <p class="auth-footer">{{ 'Уже есть аккаунт?' if register else 'Нет аккаунта?' }} <a href="{{ '/login' if register else '/register' }}">{{ 'Войти' if register else 'Зарегистрироваться' }}</a></p>
+    <p class="auth-footer">{{ 'Уже есть аккаунт?' if register else 'Нет аккаунта?' }} <a href="{{ '/login' if register else '/register' }}{{ auth_query }}">{{ 'Войти' if register else 'Зарегистрироваться' }}</a></p>
   </section>
 </main>
 {% endblock %}

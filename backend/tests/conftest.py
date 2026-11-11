@@ -8,6 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
 
 from app.auth.models import AuthSession, User
+from app.bookings.models import EventLog, ScheduleEntry
 from app.config import Settings
 from app.rooms.models import Room
 
@@ -38,6 +39,8 @@ def database(monkeypatch):
     engine = create_engine(url)
     try:
         with engine.begin() as connection:
+            connection.execute(EventLog.__table__.delete())
+            connection.execute(ScheduleEntry.__table__.delete())
             connection.execute(AuthSession.__table__.delete())
             connection.execute(User.__table__.delete())
             connection.execute(Room.__table__.delete())

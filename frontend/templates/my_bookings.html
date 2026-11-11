@@ -1,0 +1,23 @@
+{% extends "catalog_base.html" %}
+{% block title %}Мои брони — LumenBook{% endblock %}
+{% block catalog_content %}
+<main class="catalog-content" id="main-content">
+  <h1>Мои брони</h1>
+  {% for entry in items %}
+    <article class="surface">
+      <h2><a href="/my/bookings/{{ entry.id }}">{{ rooms[entry.room_id] }}</a></h2>
+      <p>{{ entry.starts_at | studio_format('%d.%m.%Y, %H:%M') }}–{{ entry.ends_at | studio_format('%H:%M') }} МСК</p>
+      <p>{{ entry.total_price_minor | price }} ₽ · {% include "components/booking_status.html" %}</p>
+    </article>
+  {% else %}
+    <p>На этой странице нет броней.</p>
+    <a href="/">Посмотреть залы</a>
+  {% endfor %}
+  {% if offset or total > 20 %}
+  <nav aria-label="Страницы броней">
+    {% if offset %}<a class="room-back" href="?offset={{ [0, offset - 20] | max }}">Назад</a>{% endif %}
+    {% if offset + 20 < total %}<a class="room-back" href="?offset={{ offset + 20 }}">Дальше</a>{% endif %}
+  </nav>
+  {% endif %}
+</main>
+{% endblock %}

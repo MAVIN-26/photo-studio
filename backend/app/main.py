@@ -10,10 +10,11 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.auth.router import router as auth_router
+from app.bookings.router import router as bookings_router
 from app.config import PROJECT_ROOT, Settings, get_settings
 from app.database import create_database_engine
 from app.rooms.router import router as rooms_router
-from app.web.formatters import format_price_minor
+from app.web.formatters import format_price_minor, studio_format
 from app.web.router import router as web_router
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.settings = settings
     templates = Jinja2Templates(directory=PROJECT_ROOT / "frontend" / "templates")
     templates.env.filters["price"] = format_price_minor
+    templates.env.filters["studio_format"] = studio_format
     application.state.templates = templates
     application.mount(
         "/static",
@@ -44,6 +46,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     application.include_router(auth_router)
     application.include_router(rooms_router)
+    application.include_router(bookings_router)
     application.include_router(web_router)
 
     @application.middleware("http")

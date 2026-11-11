@@ -64,7 +64,11 @@ if (form) {
         body: JSON.stringify(body),
       });
       const result = await response.json();
-      if (response.ok) { window.location.assign(result.redirect_url); return; }
+      if (response.ok) {
+        const bookingReturn = result.user.role === 'client' && form.dataset.bookingReturn;
+        window.location.assign(bookingReturn || result.redirect_url);
+        return;
+      }
       const error = result.error;
       if (error.details?.length) error.details.forEach(item => showError(item.field, item.message));
       else showError(['INVALID_CREDENTIALS', 'IDENTIFIER_ALREADY_EXISTS'].includes(error.code) ? 'identifier' : 'form', error.message);
