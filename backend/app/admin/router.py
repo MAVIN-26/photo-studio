@@ -1,22 +1,56 @@
 from datetime import date
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
-from app.admin.schemas import AdminSchedule
-from app.admin.service import read_booking, read_schedule
-from app.auth.dependencies import require_admin
-from app.bookings.schemas import BookingResponse
+from app.admin import service
+from app.admin.schemas import AdminBooking, AdminSchedule, ChangedAdminBooking
+from app.auth.dependencies import CsrfSession, require_admin
+from app.auth.models import User
+from app.bookings.schemas import Availability, BookingVersion, RescheduleBooking
 from app.dependencies import Database
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"], dependencies=[Depends(require_admin)])
+Admin = Annotated[User, Depends(require_admin)]
 
 
 @router.get("/schedule", response_model=AdminSchedule)
 def schedule(date_from: date, date_to: date, db: Database, room_id: UUID | None = None):
-    return read_schedule(db, date_from, date_to, room_id)
+    return service.read_schedule(db, date_from, date_to, room_id)
 
 
-@router.get("/bookings/{booking_id}", response_model=BookingResponse)
+@router.get("/bookings/{booking_id}", response_model=AdminBooking)
 def booking_detail(booking_id: UUID, db: Database):
-    return read_booking(db, booking_id)
+    return service.admin_booking_response(db, service.read_booking(db, booking_id))
+
+
+@router.get("/bookings/{booking_id}/availability", response_model=Availability)
+def booking_availability(booking_id: UUID, date: date, db: Database):
+    return service.reschedule_availability(db, booking_id, date)
+
+
+@router.post("/bookings/{booking_id}/confirm", response_model=ChangedAdminBooking)
+def confirm(booking_id: UUID, body: BookingVersion, admin: Admin, db: Database, csrf: CsrfSession):
+    entry = service.confirm_booking(db, booking_id, body.version, admin.id)
+    return ChangedAdminBooking(
+        **service.admin_booking_response(db, entry).model_dump(), message="Бронь подтверждена."
+    )
+
+
+@router.post("/bookings/{booking_id}/cancel", response_model=ChangedAdminBooking)
+def cancel(booking_id: UUID, body: BookingVersion, admin: Admin, db: Database, csrf: CsrfSession):
+    entry = service.cancel_booking(db, booking_id, body.version, admin.id)
+    return ChangedAdminBooking(
+        **service.admin_booking_response(db, entry).model_dump(), message="Бронь отменена."
+    )
+
+
+@router.post("/bookings/{booking_id}/reschedule", response_model=ChangedAdminBooking)
+def reschedule(
+    booking_id: UUID, body: RescheduleBooking, admin: Admin, db: Database, csrf: CsrfSession
+):
+    entry = service.reschedule_booking(db, booking_id, body, admin.id)
+    return ChangedAdminBooking(
+        **service.admin_booking_response(db, entry).model_dump(), message="Бронь перенесена."
+    )

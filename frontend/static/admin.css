@@ -272,6 +272,57 @@ button.admin-entry:hover {
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
+.admin-drawer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+.admin-drawer-actions > button {
+  flex: 1 1 130px;
+}
+.admin-drawer-actions > [data-action="confirm"] {
+  flex-basis: 100%;
+}
+.admin-danger {
+  color: #b52424;
+  border-color: #edb7b7;
+}
+.admin-danger-button {
+  background: #b52424;
+}
+.admin-danger-button:hover {
+  background: #951f1f;
+}
+.admin-cancel-dialog {
+  width: min(470px, calc(100% - 32px));
+  padding: 24px;
+  border: 0;
+  border-radius: 16px;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 8px 32px #1d1c1a33;
+}
+.admin-cancel-dialog::backdrop {
+  background: #1d1c1a52;
+}
+.admin-cancel-dialog h2, .admin-reschedule h3, .admin-reschedule h4 {
+  margin: 0;
+}
+.admin-reschedule label {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.admin-reschedule .admin-note {
+  margin-top: 14px;
+}
+.admin-operation-time {
+  color: var(--secondary);
+  font-size: 14px;
+}
 @media (max-width: 760px) {
   .admin-layout {
     grid-template-columns: minmax(0, 1fr);

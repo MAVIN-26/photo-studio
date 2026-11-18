@@ -203,9 +203,13 @@ def lock_booking(
     entry = get_owned_booking(db, user_id, booking_id)
     room = lock_room(db, entry.room_id)
     entry = get_owned_booking(db, user_id, booking_id, lock=True)
+    check_booking_version(entry, version)
+    return room, entry
+
+
+def check_booking_version(entry: ScheduleEntry, version: int) -> None:
     if entry.version != version:
         fail(409, "VERSION_CONFLICT", "Бронь изменилась. Проверьте её актуальные данные.")
-    return room, entry
 
 
 def pay_booking(db: Session, user_id: UUID, booking_id: UUID, version: int) -> ScheduleEntry:
@@ -222,10 +226,14 @@ def pay_booking(db: Session, user_id: UUID, booking_id: UUID, version: int) -> S
 def cancel_booking(db: Session, user_id: UUID, booking_id: UUID, version: int) -> ScheduleEntry:
     _, entry = lock_booking(db, user_id, booking_id, version)
     check_action(entry, "cancel", studio_now())
+    cancel_entry(db, entry, user_id)
+    return entry
+
+
+def cancel_entry(db: Session, entry: ScheduleEntry, actor_id: UUID) -> None:
     entry.status = "cancelled"
     entry.version += 1
-    commit_booking_event(db, entry, user_id, "booking_cancelled", {})
-    return entry
+    commit_booking_event(db, entry, actor_id, "booking_cancelled", {})
 
 
 def reschedule_booking(
@@ -234,6 +242,18 @@ def reschedule_booking(
     room, entry = lock_booking(db, user_id, booking_id, body.version)
     now = studio_now()
     check_action(entry, "reschedule", now)
+    move_entry(db, room, entry, user_id, body, now)
+    return entry
+
+
+def move_entry(
+    db: Session,
+    room: Room,
+    entry: ScheduleEntry,
+    actor_id: UUID,
+    body: RescheduleBooking,
+    now: datetime,
+) -> None:
     starts_at, ends_at = validate_interval(room, body.starts_at, body.ends_at, now)
     if ends_at - starts_at != entry.ends_at - entry.starts_at:
         fail(422, "DURATION_CHANGE_NOT_ALLOWED", "Длительность брони должна сохраниться.")
@@ -247,7 +267,7 @@ def reschedule_booking(
     commit_booking_event(
         db,
         entry,
-        user_id,
+        actor_id,
         "booking_rescheduled",
         {
             "previous": previous_interval,
@@ -255,7 +275,6 @@ def reschedule_booking(
             "ends_at": ends_at.isoformat(),
         },
     )
-    return entry
 
 
 def list_bookings(
