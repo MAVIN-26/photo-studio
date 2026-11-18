@@ -3,10 +3,18 @@ from datetime import date, datetime, time
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.bookings.schemas import BookingResponse, BookingVersion, CreateBooking, ManualBookingSource
+from app.bookings.schemas import (
+    BookingInterval,
+    BookingResponse,
+    BookingVersion,
+    CreateBooking,
+    ManualBookingSource,
+)
 from app.rooms.schemas import RoomResponse
+
+BlockReason = Literal["cleaning", "repair"]
 
 
 class ScheduleBlock(BaseModel):
@@ -14,11 +22,18 @@ class ScheduleBlock(BaseModel):
     room_id: UUID
     starts_at: datetime
     ends_at: datetime
-    reason: Literal["cleaning", "repair"]
-    status: Literal["active"] = "active"
+    reason: BlockReason
+    status: Literal["active", "cancelled"]
     version: int
     created_at: datetime
     updated_at: datetime
+
+
+class CreateBlock(BookingInterval):
+    model_config = ConfigDict(extra="forbid")
+
+    room_id: UUID
+    reason: BlockReason
 
 
 class AdminSchedule(BaseModel):

@@ -133,21 +133,32 @@ def create_booking(
 def commit_booking_event(
     db: Session, entry: ScheduleEntry, user_id: UUID, event_type: str, payload: dict
 ) -> None:
+    commit_schedule_event(db, entry, user_id, event_type, payload, notify=True)
+
+
+def commit_schedule_event(
+    db: Session,
+    entry: ScheduleEntry,
+    actor_id: UUID,
+    event_type: str,
+    payload: dict,
+    *,
+    notify: bool = False,
+) -> None:
     try:
         db.flush()
-        db.add_all(
-            [
-                EventLog(
-                    entry_id=entry.id, actor_id=user_id, event_type=event_type, payload=payload
-                ),
+        db.add(
+            EventLog(entry_id=entry.id, actor_id=actor_id, event_type=event_type, payload=payload)
+        )
+        if notify:
+            db.add(
                 EventLog(
                     entry_id=entry.id,
-                    actor_id=user_id,
+                    actor_id=actor_id,
                     event_type="notification_simulated",
                     payload={"trigger": event_type},
-                ),
-            ]
-        )
+                )
+            )
         db.commit()
     except IntegrityError as error:
         db.rollback()

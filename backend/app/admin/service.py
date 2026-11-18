@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.admin.schemas import (
     AdminBooking,
     AdminSchedule,
+    CreateBlock,
     CreateManualBooking,
     RoomSettingsPatch,
     ScheduleBlock,
@@ -53,18 +54,7 @@ def read_schedule(
             response.allowed_actions = admin_actions(entry)
             bookings.append(response)
         else:
-            blocks.append(
-                ScheduleBlock(
-                    id=entry.id,
-                    room_id=entry.room_id,
-                    starts_at=entry.starts_at,
-                    ends_at=entry.ends_at,
-                    reason=entry.block_reason,
-                    version=entry.version,
-                    created_at=entry.created_at,
-                    updated_at=entry.updated_at,
-                )
-            )
+            blocks.append(block_response(entry))
     return AdminSchedule(
         date_from=date_from,
         date_to=date_to,
@@ -84,6 +74,66 @@ def read_booking(db: Session, booking_id: UUID, *, lock: bool = False) -> Schedu
     entry = db.scalar(query)
     if entry is None:
         fail(404, "BOOKING_NOT_FOUND", "Бронь не найдена.")
+    return entry
+
+
+def block_response(entry: ScheduleEntry) -> ScheduleBlock:
+    return ScheduleBlock(
+        id=entry.id,
+        room_id=entry.room_id,
+        starts_at=entry.starts_at,
+        ends_at=entry.ends_at,
+        reason=entry.block_reason,
+        status="cancelled" if entry.status == "cancelled" else "active",
+        version=entry.version,
+        created_at=entry.created_at,
+        updated_at=entry.updated_at,
+    )
+
+
+def read_block(db: Session, block_id: UUID, *, lock: bool = False) -> ScheduleEntry:
+    query = select(ScheduleEntry).where(
+        ScheduleEntry.id == block_id, ScheduleEntry.kind == "maintenance"
+    )
+    if lock:
+        query = query.with_for_update().execution_options(populate_existing=True)
+    entry = db.scalar(query)
+    if entry is None:
+        fail(404, "BLOCK_NOT_FOUND", "Блокировка не найдена.")
+    return entry
+
+
+def create_block(db: Session, actor_id: UUID, body: CreateBlock) -> ScheduleEntry:
+    room = service.lock_room(db, body.room_id)
+    starts_at, ends_at = service.validate_interval(
+        room, body.starts_at, body.ends_at, service.studio_now()
+    )
+    entry = ScheduleEntry(
+        room_id=room.id,
+        starts_at=starts_at,
+        ends_at=ends_at,
+        kind="maintenance",
+        status="confirmed",
+        source="maintenance",
+        created_by=actor_id,
+        block_reason=body.reason,
+    )
+    db.add(entry)
+    service.commit_schedule_event(db, entry, actor_id, "block_created", {"reason": body.reason})
+    return entry
+
+
+def cancel_block(db: Session, actor_id: UUID, block_id: UUID, version: int) -> ScheduleEntry:
+    entry = read_block(db, block_id)
+    service.lock_room(db, entry.room_id)
+    entry = read_block(db, block_id, lock=True)
+    if version != entry.version:
+        fail(409, "VERSION_CONFLICT", "Блокировка изменилась. Обновите расписание.")
+    if entry.status == "cancelled":
+        fail(409, "INVALID_BLOCK_STATE", "Блокировка уже снята.")
+    entry.status = "cancelled"
+    entry.version += 1
+    service.commit_schedule_event(db, entry, actor_id, "block_cancelled", {})
     return entry
 
 

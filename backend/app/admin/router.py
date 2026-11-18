@@ -9,8 +9,10 @@ from app.admin.schemas import (
     AdminBooking,
     AdminSchedule,
     ChangedAdminBooking,
+    CreateBlock,
     CreateManualBooking,
     RoomSettingsPatch,
+    ScheduleBlock,
 )
 from app.auth.dependencies import CsrfSession, require_admin
 from app.auth.models import User
@@ -20,6 +22,27 @@ from app.rooms.schemas import RoomResponse
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 Admin = Annotated[User, Depends(require_admin)]
+
+
+@router.post("/blocks", status_code=201, response_model=ScheduleBlock)
+def create_block(
+    body: CreateBlock, admin: Admin, db: Database, csrf: CsrfSession, response: Response
+):
+    entry = service.create_block(db, admin.id, body)
+    response.headers["Location"] = f"/api/v1/admin/blocks/{entry.id}"
+    return service.block_response(entry)
+
+
+@router.get("/blocks/{block_id}", response_model=ScheduleBlock)
+def block_detail(block_id: UUID, db: Database):
+    return service.block_response(service.read_block(db, block_id))
+
+
+@router.post("/blocks/{block_id}/cancel", response_model=ScheduleBlock)
+def cancel_block(
+    block_id: UUID, body: BookingVersion, admin: Admin, db: Database, csrf: CsrfSession
+):
+    return service.block_response(service.cancel_block(db, admin.id, block_id, body.version))
 
 
 @router.patch("/rooms/{room_id}", response_model=RoomResponse)
