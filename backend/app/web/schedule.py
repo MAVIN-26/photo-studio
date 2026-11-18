@@ -20,6 +20,11 @@ MONTHS = (
     "ноября",
     "декабря",
 )
+WEEKDAYS_SHORT = ("пн", "вт", "ср", "чт", "пт", "сб", "вс")
+
+
+def short_date(day: date) -> str:
+    return f"{WEEKDAYS_SHORT[day.weekday()]}, {day.day} {MONTHS[day.month - 1]}"
 
 
 def date_label(day: date) -> str:

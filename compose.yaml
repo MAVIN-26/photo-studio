@@ -28,6 +28,9 @@ services:
       POSTGRES_PORT: 5432
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      STUDIO_PHONE: ${STUDIO_PHONE:-}
+    volumes:
+      - room_media:/app/room-media
     ports:
       - "127.0.0.1:${APP_PORT:-8000}:8000"
     depends_on:
@@ -42,3 +45,4 @@ services:
 
 volumes:
   postgres_data:
+  room_media:

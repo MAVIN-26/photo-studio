@@ -8,7 +8,8 @@ WORKDIR /app/backend
 COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt \
     && groupadd --system app \
-    && useradd --system --gid app app
+    && useradd --system --gid app app \
+    && install -d -o app -g app /app/room-media
 
 COPY backend/ ./
 COPY frontend/ /app/frontend/

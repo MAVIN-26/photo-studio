@@ -4,14 +4,28 @@
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', path='/booking.css') }}">
   <script type="module" src="{{ url_for('static', path='/booking.js') }}"></script>
+  {% if room.gallery_images %}<script type="module" src="{{ url_for('static', path='/room-gallery.js') }}"></script>{% endif %}
 {% endblock %}
 {% block catalog_content %}
 <main class="room-content" id="main-content">
-  <a class="room-back" href="/">{{ icon('arrow') }}Все залы</a>
-  <article class="room-detail" aria-labelledby="room-title">
+  <a class="room-back" data-selection-content href="/">{{ icon('arrow') }}Все залы</a>
+  <article class="room-detail" data-selection-content aria-labelledby="room-title">
     <div class="room-hero">
-      {% if room.image_url %}
-        <img class="room-image" src="{{ room.image_url }}" alt="Зал «{{ room.name }}»" width="375" height="232" fetchpriority="high">
+      {% set photos = ([room.image_url] if room.image_url else []) + room.gallery_images %}
+      {% if photos %}
+      <div class="room-gallery" aria-label="Изображения зала">
+        {% for image in photos %}
+        <img class="room-image" src="{{ image }}" alt="Зал «{{ room.name }}», изображение {{ loop.index }}"
+             width="375" height="232" {% if loop.first %}fetchpriority="high"{% else %}loading="lazy" hidden{% endif %}>
+        {% endfor %}
+        {% if photos | length > 1 %}
+        <div class="room-gallery-controls" hidden>
+          <button type="button" data-previous aria-label="Предыдущее изображение">‹</button>
+          <span role="status" data-image-number>1 / {{ photos | length }}</span>
+          <button type="button" data-next aria-label="Следующее изображение">›</button>
+        </div>
+        {% endif %}
+      </div>
       {% else %}
         <div class="room-image image-missing">{{ icon('image') }}<span>Изображение зала пока не добавлено</span></div>
       {% endif %}

@@ -55,6 +55,64 @@
   font-size: 24px;
   margin: 0 16px 0 0;
 }
+.admin-calendar {
+  position: relative;
+}
+.admin-calendar-toggle {
+  display: grid;
+  place-items: center;
+  width: 44px;
+}
+.admin-calendar-panel {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(304px, calc(100vw - 32px));
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 30px #1d1c1a24;
+}
+.admin-calendar-panel header,
+.admin-calendar-panel footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.admin-calendar-panel header strong {
+  font-size: 14px;
+  text-transform: capitalize;
+}
+.admin-calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 8px;
+  text-align: center;
+  font-size: 13px;
+}
+.admin-calendar-days a {
+  display: grid;
+  place-items: center;
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--text);
+}
+.admin-calendar-days a:hover,
+.admin-calendar-days a.is-today {
+  border-color: var(--accent);
+  text-decoration: none;
+}
+.admin-calendar-days a[aria-current] {
+  background: var(--accent);
+  color: white;
+}
+.admin-calendar-panel footer {
+  margin-top: 12px;
+  color: var(--secondary);
+  font-size: 13px;
+}
 .admin-toolbar strong {
   margin: 0 6px;
 }
@@ -348,13 +406,43 @@ button.admin-entry:hover {
   border-radius: 16px;
   background: var(--surface);
 }
-.room-settings-card > img {
+.room-settings-cover > img {
   display: block;
   width: 100%;
   height: auto;
   aspect-ratio: 2;
   object-fit: cover;
   border-radius: 10px;
+}
+.room-settings-cover {
+  position: relative;
+}
+.room-settings-cover button {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+}
+.room-settings-cover:has(img[hidden]) button {
+  position: static;
+}
+.room-settings-gallery {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.room-settings-thumbnail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.room-settings-thumbnail img {
+  flex: none;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.room-settings-media > .text-button {
+  display: inline-block;
+  margin-top: 8px;
 }
 .room-settings-heading {
   display: flex;

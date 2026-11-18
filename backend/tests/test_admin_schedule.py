@@ -512,9 +512,11 @@ def test_time_blocks_share_calendar_and_keep_history(database, monkeypatch):
             == 403
         )
         slots = f"/api/v1/rooms/{body['room_id']}/availability?date={day}"
-        data = client.get(slots).json()["slots"]
+        availability = client.get(slots).json()
+        data = availability["slots"]
         assert all(not slot["available"] for slot in data[4:6])
         assert set(data[4]) == {"starts_at", "ends_at", "available"}
+        assert availability["blocked_starts"] == [slot["starts_at"] for slot in data[4:6]]
         conflict = client.post("/api/v1/bookings", json=body, headers=client_headers)
         assert conflict.json()["error"]["code"] == "SLOT_UNAVAILABLE"
         assert (
@@ -528,7 +530,9 @@ def test_time_blocks_share_calendar_and_keep_history(database, monkeypatch):
         assert cancelled.json()["status"] == "cancelled" and cancelled.json()["version"] == 2
         assert admin.get(detail).json()["status"] == "cancelled"
         assert admin.get(schedule_url).json()["blocks"] == []
-        assert all(slot["available"] for slot in client.get(slots).json()["slots"][4:6])
+        unblocked = client.get(slots).json()
+        assert all(slot["available"] for slot in unblocked["slots"][4:6])
+        assert unblocked["blocked_starts"] == []
         for version, code in [(1, "VERSION_CONFLICT"), (2, "INVALID_BLOCK_STATE")]:
             result = admin.post(detail + "/cancel", json={"version": version}, headers=headers)
             assert result.status_code == 409 and result.json()["error"]["code"] == code

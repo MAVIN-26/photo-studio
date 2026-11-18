@@ -1,35 +1,59 @@
-<section class="booking" id="booking" data-room="{{ room.id }}" data-today="{{ today }}">
+<section class="booking" id="booking" data-room="{{ room.id }}" data-today="{{ today }}" data-room-name="{{ room.name }}">
+  <div data-selection-content>
   {% set grid_hint = 'Можно выбрать несколько часов подряд. Последние 5 минут часа отводятся на выход и осмотр зала.' %}
   {% include "components/booking_grid.html" %}
   <div class="booking-summary">
-    <div aria-live="polite"><span class="booking-help">Выбранное время</span><strong class="booking-selected-time">Выберите один или несколько часов</strong></div>
+    <div aria-live="polite"><span class="booking-help">Выбранное время</span><strong class="booking-selected-time">Выберите один или несколько часов</strong><small data-selected-duration></small></div>
     <div aria-live="polite"><span class="booking-help">Итого</span><strong class="booking-total">—</strong></div>
     {% if not user or user.role == 'client' %}
-    <button class="button primary booking-continue" type="button" disabled>Продолжить</button>
+    <button class="button primary booking-continue" type="button" disabled>Забронировать</button>
     {% endif %}
   </div>
   <p class="form-error booking-error" role="alert" hidden></p>
   <noscript><p>Для выбора времени включите JavaScript.</p></noscript>
+  </div>
   {% if user and user.role == 'client' %}
-  <form class="booking-form surface" hidden>
-    <h2>Подтверждение брони</h2>
-    <p class="booking-form-summary"></p>
-    <div class="field">
-      <label for="contact_name">Имя</label>
-      <input id="contact_name" name="contact_name" value="{{ user.name }}" autocomplete="name" maxlength="100" required>
-    </div>
-    <div class="field">
-      <label for="contact_phone">Телефон</label>
-      <input id="contact_phone" name="contact_phone" type="tel" value="{{ user.phone or '' }}" autocomplete="tel" placeholder="+7 999 000-00-01" maxlength="64" required>
-    </div>
-    <div class="field">
-      <label for="comment">Комментарий к бронированию <span class="booking-help">необязательно</span></label>
-      <textarea id="comment" name="comment" rows="3" maxlength="1000" placeholder="Например, нужен дополнительный свет или фон"></textarea>
-    </div>
+  <form class="booking-form" hidden>
+    <button type="button" class="text-button booking-back" data-change-time>{{ icon('arrow') }} Изменить время</button>
+    <h1 tabindex="-1">Подтверждение брони</h1>
+    <section class="surface booking-review">
+      <div class="booking-detail-room">
+        {% if room.image_url %}<img src="{{ room.image_url }}" alt="" width="64" height="64">{% endif %}
+        <div><h2>{{ room.name }}</h2><p data-review-rate></p></div>
+      </div>
+      <dl>
+        <div><dt>Дата</dt><dd data-review-date></dd></div>
+        <div><dt>Время</dt><dd data-review-time></dd></div>
+        <div><dt>Длительность</dt><dd data-review-duration></dd></div>
+        <div><dt>Итого</dt><dd><small data-review-calculation></small><strong data-review-total></strong></dd></div>
+      </dl>
+    </section>
+    <section class="surface booking-review-fields">
+      <div class="field">
+        <label for="contact_name">Имя</label>
+        <input id="contact_name" name="contact_name" value="{{ user.name }}" autocomplete="name" maxlength="100" required>
+      </div>
+      <div class="field">
+        <label for="contact_phone">Телефон</label>
+        <input id="contact_phone" name="contact_phone" type="tel" value="{{ user.phone or '' }}" autocomplete="tel" placeholder="+7 999 000-00-01" maxlength="64" required>
+      </div>
+      <div class="field">
+        <label for="comment">Комментарий к бронированию <span class="booking-help">необязательно</span></label>
+        <textarea id="comment" name="comment" rows="3" maxlength="1000" placeholder="Например, нужен дополнительный свет или фон"></textarea>
+      </div>
+    </section>
+    <p class="booking-list-note">Съёмка длится 55 минут. Последние 5 минут каждого часа отводятся на выход и осмотр зала. Перенос и отмена доступны за 24 часа до начала.</p>
     <p class="form-error booking-form-error" role="alert" hidden></p>
     <p class="booking-recovery" hidden><a href="/my/bookings">Проверить мои брони</a></p>
     <button class="button primary booking-submit" type="submit">Забронировать</button>
     <p class="booking-help">Бронь создаётся сразу, и время закрепляется за вами.</p>
   </form>
+  <dialog class="booking-dialog" id="booking-conflict" aria-labelledby="booking-conflict-title">
+    <form method="dialog">
+      <h2 id="booking-conflict-title">Это время уже заняли</h2>
+      <p>Пока вы оформляли бронь, интервал <strong data-conflict-interval></strong> стал недоступен. Бронь не создана. Выберите другое свободное время.</p>
+      <button class="button primary" autofocus>Выбрать другое время</button>
+    </form>
+  </dialog>
   {% endif %}
 </section>

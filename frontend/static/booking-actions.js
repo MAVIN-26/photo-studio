@@ -36,8 +36,11 @@ for (const actions of document.querySelectorAll('[data-booking-id][data-version]
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf.csrf_token },
         body: JSON.stringify({version: Number(actions.dataset.version)}),
       });
-      const destination = action === 'pay' ? '/my/bookings/' + result.id : pagePath;
-      openBookingPage(destination, result.message);
+      const onList = location.pathname === '/my/bookings';
+      const destination = action === 'pay' && !onList ? '/my/bookings/' + result.id : pagePath;
+      const interval = actions.dataset.interval;
+      const message = onList && interval ? result.message + ' ' + interval : result.message;
+      openBookingPage(destination, message);
     } catch (failure) {
       if (failure.status === 401) {
         location.assign('/login');

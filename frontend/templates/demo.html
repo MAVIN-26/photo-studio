@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "components/icons.html" import icon %}
+{% block title %}Демо LumenBook{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', path='/demo.css') }}">{% endblock %}
+{% block content %}
+{% set loft = rooms.get('Лофт') %}
+{% set scandi = rooms.get('Сканди') %}
+{% set loft_page = '/rooms/' ~ loft.id ~ '#booking' if loft else '/' %}
+{% set scandi_page = '/rooms/' ~ scandi.id ~ '#booking' if scandi else '/' %}
+{% set scenarios = [
+  ('Забронировать «Лофт» на два часа и оплатить', 'Выберите дату и два часа подряд, оставьте комментарий и оплатите бронь в деморежиме.', loft_page, 'clock'),
+  ('Отменить бронь', 'Откройте «Мои брони» и выберите запись, до начала которой не меньше 24 часов.', '/my/bookings', 'calendar'),
+  ('Занять один час одновременно с другим клиентом', 'Войдите под двумя клиентами в разных профилях браузера. Оба выберут один свободный час. После первой брони второй клиент получит сообщение и сможет выбрать другое время.', scandi_page, 'clock'),
+  ('Записать клиента по звонку', 'В расписании нажмите «+ Бронь» в свободной ячейке, заполните имя и телефон, затем сохраните.', '/admin', 'calendar'),
+  ('Подтвердить оплаченную бронь', 'Найдите в расписании бронь со статусом «Оплачено», откройте карточку и нажмите «Подтвердить».', '/admin', 'calendar'),
+  ('Закрыть час и изменить цену', 'Закройте свободный час для уборки, измените цену «Неона» в настройках залов и проверьте результат в каталоге.', '/admin', 'calendar'),
+] %}
+<main class="demo-page">
+  <header class="demo-heading">
+    <a class="logo logo-large" href="/">Lumen<span>Book</span></a>
+    <h1>Демо LumenBook</h1>
+    <p>Бронирование залов фотостудии. Оплата и уведомления работают в демонстрационном режиме.</p>
+  </header>
+  <section aria-labelledby="demo-roles-title">
+    <h2 id="demo-roles-title">Начать как</h2>
+    <div class="demo-roles">
+      <a class="surface demo-card" href="{{ '/' if user and user.role == 'client' else '/login' }}">
+        <strong>Клиент</strong><span>Залы, бронирование и оплата</span>
+      </a>
+      <a class="surface demo-card" href="/admin">
+        <strong>Администратор</strong><span>Расписание, ручные брони и настройки залов</span>
+      </a>
+    </div>
+    {% if user %}
+    <p class="demo-session">Вы вошли как {{ 'администратор' if user.role == 'admin' else 'клиент' }}. Для смены роли <button class="text-button" type="button" data-logout>выйдите из аккаунта</button>.</p>
+    <p class="form-error" id="form-error" role="alert" hidden></p>
+    {% endif %}
+  </section>
+  <section aria-labelledby="demo-scenarios-title">
+    <h2 id="demo-scenarios-title">Сценарии из ТЗ</h2>
+    <div class="demo-scenarios">
+      {% for title, description, url, symbol in scenarios %}
+      <a class="surface demo-card demo-scenario" href="{{ url }}">
+        <span class="demo-symbol">{{ icon(symbol) }}</span>
+        <span><strong>{{ title }}</strong><span>{{ description }}</span></span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+</main>
+{% endblock %}

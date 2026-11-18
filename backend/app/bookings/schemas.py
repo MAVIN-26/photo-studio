@@ -63,6 +63,7 @@ class Availability(BaseModel):
     hourly_price_minor: int
     currency: Literal["RUB"] = "RUB"
     slots: list[Slot]
+    blocked_starts: list[datetime] = Field(default_factory=list)
 
 
 class BookingResponse(BaseModel):

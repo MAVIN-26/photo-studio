@@ -26,3 +26,7 @@ class RoomResponse(BaseModel):
 
 class RoomListResponse(BaseModel):
     items: list[RoomResponse]
+
+
+class RoomImages(RoomResponse):
+    gallery_images: list[str]

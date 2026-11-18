@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env",
         env_file_encoding="utf-8",
+        env_ignore_empty=True,
         extra="ignore",
     )
 
@@ -22,6 +23,8 @@ class Settings(BaseSettings):
     postgres_port: int = Field(default=5432, ge=1, le=65535)
     session_cookie_secure: bool = False
     session_ttl_hours: int = Field(default=12, ge=1, le=168)
+    studio_phone: str | None = Field(default=None, pattern=r"^\+[1-9][0-9]{7,14}$")
+    room_media_dir: Path = PROJECT_ROOT / "room-media"
 
     @property
     def database_url(self) -> URL:

@@ -231,6 +231,14 @@
 .room-hours svg {
   flex-shrink: 0;
 }
+.room-hours-available svg {
+  color: #167246;
+}
+.room-opening-hours {
+  margin: 0;
+  color: var(--secondary);
+  font-size: 12px;
+}
 .room-card-link {
   width: 100%;
 }
@@ -260,6 +268,34 @@
 }
 .room-hero .room-image[src$=".svg"] {
   object-fit: fill;
+}
+.room-gallery {
+  position: relative;
+}
+.room-gallery-controls {
+  position: absolute;
+  inset: auto 12px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: white;
+}
+.room-gallery-controls button,
+.room-gallery-controls span {
+  border: 0;
+  border-radius: 999px;
+  background: #1d1c1ad9;
+  color: inherit;
+}
+.room-gallery-controls button {
+  width: 44px;
+  height: 44px;
+  font-size: 24px;
+}
+.room-gallery-controls span {
+  padding: 5px 12px;
+  font-size: 14px;
 }
 .room-info {
   min-width: 0;
