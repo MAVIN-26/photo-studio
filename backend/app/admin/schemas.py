@@ -28,3 +28,13 @@ class AdminSchedule(BaseModel):
     rooms: list[RoomResponse]
     bookings: list[BookingResponse]
     blocks: list[ScheduleBlock]
+
+
+class AdminBooking(BookingResponse):
+    room_name: str
+    confirmed_at: datetime | None = None
+    cancelled_at: datetime | None = None
+
+
+class ChangedAdminBooking(AdminBooking):
+    message: str

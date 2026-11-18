@@ -104,6 +104,36 @@
       <div><dt>Источник</dt><dd data-field="source"></dd></div>
     </dl>
     <section class="admin-note" hidden><h3>Комментарий клиента</h3><p data-field="comment"></p></section>
+    <p class="admin-operation-time" hidden></p>
+    <div class="admin-drawer-actions" hidden>
+      <button type="button" class="button primary" data-action="confirm" hidden>Подтвердить</button>
+      <button type="button" class="admin-control" data-action="reschedule" hidden>Перенести</button>
+      <button type="button" class="admin-control admin-danger" data-action="cancel" hidden>Отменить</button>
+    </div>
   </div>
+  <form class="admin-drawer-body admin-reschedule" hidden>
+    <h3>Перенос брони</h3>
+    <section class="admin-note"><h4>Сейчас</h4><p data-current-interval></p></section>
+    <label>Новая дата <input class="admin-control" type="date" name="day" required></label>
+    <label>Время начала <select class="admin-control" name="start" required disabled></select></label>
+    <p data-duration></p>
+    <p data-available-interval role="status"></p>
+    <button class="text-button" type="button" data-retry hidden>Обновить доступность</button>
+    <div class="admin-drawer-actions">
+      <button class="button primary" type="submit" disabled>Перенести</button>
+      <button class="admin-control" type="button" data-back>Отмена</button>
+    </div>
+  </form>
+</dialog>
+<dialog class="admin-cancel-dialog" id="booking-cancel" aria-labelledby="cancel-heading">
+  <form method="dialog">
+    <h2 id="cancel-heading">Отменить бронь?</h2>
+    <p data-cancel-summary></p>
+    <p>Клиент увидит статус «Отменено», а время освободится для других.</p>
+    <div class="admin-drawer-actions">
+      <button class="admin-control" value="keep" autofocus>Не отменять</button>
+      <button class="button primary admin-danger-button" value="confirm">Отменить бронь</button>
+    </div>
+  </form>
 </dialog>
 {% endblock %}
