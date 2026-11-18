@@ -1,0 +1,17 @@
+{% set titles = {
+  'booking_created': 'Бронь создана',
+  'booking_paid': 'Бронь оплачена',
+  'booking_confirmed': 'Бронь подтверждена',
+  'booking_cancelled': 'Бронь отменена',
+  'booking_rescheduled': 'Бронь перенесена'
+} %}
+{% if event in titles %}
+<section class="booking-latest-change" aria-labelledby="booking-change-title">
+  <h2 id="booking-change-title">Последнее изменение</h2>
+  <p>{{ titles[event] }} · <time datetime="{{ notification.created_at.isoformat() }}">{{ notification.created_at | studio_format('%d.%m.%Y, %H:%M') }} МСК</time></p>
+  {% if event == 'booking_rescheduled' %}
+  <p>Новое время · {{ entry.starts_at | studio_format('%d.%m.%Y') }},
+    {{ entry.starts_at | studio_format('%H:%M') }}–{{ entry.ends_at | studio_format('%H:%M') }} МСК</p>
+  {% endif %}
+</section>
+{% endif %}

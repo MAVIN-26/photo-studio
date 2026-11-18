@@ -5,16 +5,45 @@
   {% include "components/booking_action_assets.html" %}
 {% endblock %}
 {% block catalog_content %}
-<main class="catalog-content" id="main-content">
+{% set event = notification.payload.get('trigger') if notification else none %}
+{% set payment_confirmation = entry and entry.status == 'paid' and event == 'booking_paid' %}
+<main class="catalog-content{% if payment_confirmation %} booking-payment-page{% endif %}" id="main-content">
   <p class="booking-notice" data-booking-notice role="status" hidden></p>
   {% if entry %}
   <a href="/my/bookings" class="room-back">{{ icon('arrow') }}Мои брони</a>
-  <section class="surface">
+  {% if payment_confirmation %}
+  <div class="booking-payment-header">
+    <span class="booking-payment-icon" aria-hidden="true">✓</span>
+    <h1>Бронь оплачена</h1>
+    {% include "components/booking_status.html" %}
+  </div>
+  <section class="booking-payment-confirmation" aria-labelledby="booking-payment-title">
+    <h2 id="booking-payment-title">Подтверждение оплаты</h2>
+    <p>«{{ room.name }}» · {{ entry.starts_at | studio_format('%d.%m.%Y') }},
+      {{ entry.starts_at | studio_format('%H:%M') }}–{{ entry.ends_at | studio_format('%H:%M') }} МСК.
+      Оплата {{ entry.total_price_minor | price }} ₽ прошла в деморежиме.</p>
+    <p>Приходите за 10 минут до начала. Съёмка длится 55 минут, последние 5 минут — выход и осмотр зала.</p>
+    <p class="booking-help">Демо: SMS и письма не отправляются. Подтверждение показано на экране.</p>
+  </section>
+  {% endif %}
+  <section class="surface booking-detail-card">
+    {% if payment_confirmation %}
+    <div class="booking-detail-room">
+      {% if room.image_url %}<img src="{{ room.image_url }}" alt="" width="64" height="64">{% endif %}
+      <div><h2>{{ room.name }}</h2><p>{{ entry.hourly_price_minor | price }} ₽ за час</p></div>
+    </div>
+    {% else %}
     <h1>Бронь зала «{{ room.name }}»</h1>
     {% include "components/booking_status.html" %}
+    {% endif %}
+    {% if notification %}
+    {% include "components/booking_latest_change.html" %}
+    {% endif %}
     <dl class="account-details">
+      {% if payment_confirmation %}<dt>Номер брони</dt><dd>{{ (entry.id | string)[:8] }}</dd>{% endif %}
       <dt>Дата</dt><dd>{{ entry.starts_at | studio_format('%d.%m.%Y') }}</dd>
       <dt>Время</dt><dd>{{ entry.starts_at | studio_format('%H:%M') }}–{{ entry.ends_at | studio_format('%H:%M') }} МСК</dd>
+      {% if payment_confirmation %}<dt>Длительность</dt><dd>{{ duration_hours }} ч</dd>{% endif %}
       <dt>Итого</dt><dd>{{ entry.total_price_minor | price }} ₽</dd>
       <dt>Имя</dt><dd>{{ entry.contact_name }}</dd>
       <dt>Телефон</dt><dd>{{ entry.contact_phone }}</dd>
@@ -24,6 +53,12 @@
     {% include "components/booking_actions.html" %}
     <a href="/rooms/{{ room.id }}#booking">Посмотреть время в зале</a>
   </section>
+  {% if payment_confirmation %}
+  <nav class="booking-payment-links" aria-label="Продолжить">
+    <a class="button primary" href="/my/bookings">Мои брони</a>
+    <a class="button" href="/">Забронировать ещё</a>
+  </nav>
+  {% endif %}
   {% else %}
   <section class="catalog-empty"><h1>Бронь не найдена</h1><a class="button primary" href="/my/bookings">Мои брони</a></section>
   {% endif %}

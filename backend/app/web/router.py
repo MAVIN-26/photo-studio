@@ -108,6 +108,8 @@ def my_booking(booking_id: UUID, request: Request, user: OptionalUser, db: Datab
             "entry": entry,
             "room": room,
             "actions": {entry.id: allowed_actions(entry, service.studio_now())} if entry else {},
+            "notification": service.latest_booking_notification(db, entry) if entry else None,
+            "duration_hours": (entry.ends_at - entry.starts_at) // HOUR if entry else None,
         },
     )
 
