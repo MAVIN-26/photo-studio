@@ -234,8 +234,7 @@ form?.addEventListener('submit', async event => {
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf.csrf_token },
       body: JSON.stringify(body),
     });
-    if (bookingId) openBookingPage(bookingPath, result.message);
-    else window.location.assign('/my/bookings/' + result.id);
+    openBookingPage('/my/bookings/' + result.id, result.message);
   } catch (failure) {
     if (failure.status === 401) {
       if (bookingId) location.assign('/login');

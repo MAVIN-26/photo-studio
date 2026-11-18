@@ -66,7 +66,10 @@ def test_creation_occupies_time_and_preserves_owner_price_and_audit(app, databas
         assert booking["contact_name"] == "Клиент"
         detail = result.headers["Location"]
         assert client.get(detail).status_code == 200
-        assert client.get(f"/my/bookings/{booking['id']}").status_code == 200
+        page_url = f"/my/bookings/{booking['id']}"
+        page = client.get(page_url)
+        assert page.status_code == 200
+        assert "Последнее изменение" in page.text and "Бронь создана" in page.text
 
         after = other.get(url).json()
         assert [slot["available"] for slot in after["slots"][4:7]] == [False, False, True]
@@ -74,6 +77,9 @@ def test_creation_occupies_time_and_preserves_owner_price_and_audit(app, databas
         assert other.get(detail).status_code == 401
         register(other, "other@example.ru")
         assert other.get(detail).status_code == 404
+        other_page = other.get(page_url)
+        assert other_page.status_code == 404
+        assert "Последнее изменение" not in other_page.text
         assert other.get("/api/v1/bookings").json()["total"] == 0
         with database[0].begin() as connection:
             connection.execute(update(Room).values(hourly_price_minor=250_000, version=2))

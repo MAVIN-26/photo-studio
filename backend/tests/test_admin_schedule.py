@@ -169,6 +169,7 @@ def test_admin_booking_actions(database, monkeypatch):
         create(18, 20)
         url = f"/api/v1/admin/bookings/{booking['id']}"
         client_url = f"/api/v1/bookings/{booking['id']}"
+        client_page = f"/my/bookings/{booking['id']}"
         assert (
             client.post(url + "/confirm", json={"version": 1}, headers=client_headers).status_code
             == 403
@@ -183,6 +184,10 @@ def test_admin_booking_actions(database, monkeypatch):
 
         paid = client.post(client_url + "/pay", json={"version": 1}, headers=client_headers)
         assert paid.status_code == 200
+        paid_page = client.get(client_page).text
+        assert "Подтверждение оплаты" in paid_page
+        assert "Демо: SMS и письма не отправляются" in paid_page
+        assert "4 000 ₽ прошла в деморежиме" in paid_page
         monkeypatch.setattr(service, "studio_now", lambda: now + timedelta(hours=4, minutes=40))
         stale = admin.post(url + "/confirm", json={"version": 1}, headers=admin_headers)
         assert stale.json()["error"]["code"] == "VERSION_CONFLICT"
@@ -193,6 +198,9 @@ def test_admin_booking_actions(database, monkeypatch):
         assert set(confirmed["allowed_actions"]) == {"cancel", "reschedule"}
         assert admin.get(url).json()["confirmed_at"] == confirmed["confirmed_at"]
         assert client.get(client_url).json()["allowed_actions"] == []
+        confirmed_page = client.get(client_page).text
+        assert "Бронь подтверждена" in confirmed_page
+        assert "Подтверждение оплаты" not in confirmed_page
 
         def move(version, start, end):
             return admin.post(
@@ -215,6 +223,9 @@ def test_admin_booking_actions(database, monkeypatch):
         assert moved["status"] == "confirmed"
         assert moved["total_price_minor"] == booking["total_price_minor"]
         assert moved["paid_at"] == confirmed["paid_at"]
+        moved_page = client.get(client_page).text
+        assert "Бронь перенесена" in moved_page and "16:00–18:00" in moved_page
+        assert "Бронь подтверждена ·" not in moved_page
         assert client.get(url + "/availability", params={"date": day}).status_code == 403
         data = admin.get(url + "/availability", params={"date": day}).json()
         assert data["slots"][7]["available"] and data["slots"][8]["available"]
@@ -226,6 +237,7 @@ def test_admin_booking_actions(database, monkeypatch):
         assert cancelled["status"] == "cancelled" and cancelled["cancelled_at"]
         assert cancelled["paid_at"] == confirmed["paid_at"] and cancelled["version"] == 5
         assert cancelled["allowed_actions"] == []
+        assert "Бронь отменена" in client.get(client_page).text
         schedule = admin.get("/api/v1/admin/schedule", params={"date_from": day, "date_to": day})
         assert booking["id"] not in {entry["id"] for entry in schedule.json()["bookings"]}
         assert create(16, 18)["id"] != booking["id"]

@@ -36,7 +36,8 @@ for (const actions of document.querySelectorAll('[data-booking-id][data-version]
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf.csrf_token },
         body: JSON.stringify({version: Number(actions.dataset.version)}),
       });
-      openBookingPage(pagePath, result.message);
+      const destination = action === 'pay' ? '/my/bookings/' + result.id : pagePath;
+      openBookingPage(destination, result.message);
     } catch (failure) {
       if (failure.status === 401) {
         location.assign('/login');

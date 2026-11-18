@@ -192,6 +192,15 @@ def get_owned_booking(
     return entry
 
 
+def latest_booking_notification(db: Session, booking: ScheduleEntry) -> EventLog | None:
+    return db.scalar(
+        select(EventLog)
+        .where(EventLog.entry_id == booking.id, EventLog.event_type == "notification_simulated")
+        .order_by(EventLog.created_at.desc(), EventLog.id.desc())
+        .limit(1)
+    )
+
+
 def allowed_actions(entry: ScheduleEntry, now: datetime) -> list[str]:
     actions = []
     if entry.status == "pending_payment" and entry.starts_at > now:
