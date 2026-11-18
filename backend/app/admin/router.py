@@ -2,11 +2,12 @@ from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Response
 
 from app.admin import service
 from app.admin.schemas import (
     AdminBooking,
+    AdminBookingFilters,
     AdminSchedule,
     ChangedAdminBooking,
     CreateBlock,
@@ -16,7 +17,7 @@ from app.admin.schemas import (
 )
 from app.auth.dependencies import CsrfSession, require_admin
 from app.auth.models import User
-from app.bookings.schemas import Availability, BookingVersion, RescheduleBooking
+from app.bookings.schemas import Availability, BookingList, BookingVersion, RescheduleBooking
 from app.dependencies import Database
 from app.rooms.schemas import RoomResponse
 
@@ -55,6 +56,11 @@ def update_room(
 @router.get("/schedule", response_model=AdminSchedule)
 def schedule(date_from: date, date_to: date, db: Database, room_id: UUID | None = None):
     return service.read_schedule(db, date_from, date_to, room_id)
+
+
+@router.get("/bookings", response_model=BookingList)
+def booking_list(filters: Annotated[AdminBookingFilters, Query()], db: Database) -> BookingList:
+    return service.list_admin_bookings(db, filters)
 
 
 @router.get("/bookings/{booking_id}", response_model=AdminBooking)

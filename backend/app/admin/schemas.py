@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.bookings.schemas import (
     BookingInterval,
     BookingResponse,
+    BookingStatus,
     BookingVersion,
     CreateBooking,
     ManualBookingSource,
@@ -44,6 +45,17 @@ class AdminSchedule(BaseModel):
     rooms: list[RoomResponse]
     bookings: list[BookingResponse]
     blocks: list[ScheduleBlock]
+
+
+class AdminBookingFilters(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date_from: date | None = None
+    date_to: date | None = None
+    room_id: UUID | None = None
+    status: BookingStatus | None = None
+    limit: int = Field(default=20, ge=1, le=100)
+    offset: int = Field(default=0, ge=0)
 
 
 class AdminBooking(BookingResponse):

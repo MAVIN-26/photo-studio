@@ -554,3 +554,113 @@ def test_time_blocks_share_calendar_and_keep_history(database, monkeypatch):
                 select(EventLog.event_type).where(EventLog.entry_id == active["id"])
             ).all()
         assert sorted(events) == ["block_cancelled", "block_created"]
+
+
+def test_admin_booking_list_filters_history_and_paginates(database):
+    from app.main import create_app
+    from app.rooms.models import Room
+    from scripts.seed_rooms import seed_rooms
+
+    engine, settings, _ = database
+    seed_rooms(engine)
+    email = "list-admin@example.ru"
+    with Session(engine) as db:
+        create_admin(db, "Администратор", email, PASSWORD)
+        db.commit()
+        admin_id = db.scalar(select(User.id).where(User.email == email))
+        room_ids = list(db.scalars(select(Room.id).order_by(Room.name).limit(2)))
+
+    now = datetime(2024, 1, 10, 10, tzinfo=STUDIO_ZONE)
+    booking_table = ScheduleEntry.__table__
+    same_time_first, same_time_second, cancelled_id, later_id = sorted(uuid4() for _ in range(4))
+    with engine.begin() as connection:
+        for entry_id, room_id, status, starts_at in [
+            (same_time_second, room_ids[0], "confirmed", now),
+            (same_time_first, room_ids[1], "confirmed", now),
+            (cancelled_id, room_ids[0], "cancelled", now.replace(hour=11)),
+            (later_id, room_ids[0], "confirmed", now + timedelta(days=10)),
+        ]:
+            connection.execute(
+                insert(booking_table).values(
+                    id=entry_id,
+                    room_id=room_id,
+                    kind="booking",
+                    status=status,
+                    source="phone",
+                    starts_at=starts_at,
+                    ends_at=starts_at + timedelta(hours=1),
+                    created_by=admin_id,
+                    contact_name="Контакт брони",
+                    contact_phone="+79990000001",
+                    comment="",
+                    hourly_price_minor=200_000,
+                    total_price_minor=200_000,
+                )
+            )
+        connection.execute(
+            insert(booking_table).values(
+                room_id=room_ids[0],
+                kind="maintenance",
+                status="confirmed",
+                source="maintenance",
+                starts_at=now.replace(hour=12),
+                ends_at=now.replace(hour=13),
+                created_by=admin_id,
+                block_reason="cleaning",
+            )
+        )
+
+    app = create_app(settings)
+    url = "/api/v1/admin/bookings"
+    with TestClient(app) as admin, TestClient(app) as client:
+        assert admin.get(url).status_code == 401
+        register(client, "list-client@example.ru")
+        assert client.get(url).status_code == 403
+        token = admin.get("/api/v1/auth/csrf").json()["csrf_token"]
+        login = admin.post(
+            "/api/v1/auth/login",
+            headers={"X-CSRF-Token": token},
+            json={"identifier": email, "password": PASSWORD},
+        )
+        assert login.status_code == 200
+
+        response = admin.get(url)
+        assert response.status_code == 200, response.text
+        assert response.headers["cache-control"] == "no-store"
+        listing = response.json()
+        assert (listing["total"], listing["limit"], listing["offset"]) == (4, 20, 0)
+        assert [row["id"] for row in listing["items"]] == [
+            str(same_time_first),
+            str(same_time_second),
+            str(cancelled_id),
+            str(later_id),
+        ]
+        assert listing["items"][2]["allowed_actions"] == []
+
+        page = admin.get(url, params={"limit": 1, "offset": 1}).json()
+        assert (page["total"], page["limit"], page["offset"]) == (4, 1, 1)
+        assert [row["id"] for row in page["items"]] == [str(same_time_second)]
+        assert admin.get(url, params={"offset": 4}).json()["items"] == []
+
+        date_filters = {"date_from": "2024-01-10", "date_to": "2024-01-20"}
+        assert admin.get(url, params=date_filters).json()["total"] == 4
+        combined = date_filters | {
+            "date_to": "2024-01-10",
+            "room_id": str(room_ids[0]),
+            "status": "cancelled",
+        }
+        filtered = admin.get(url, params=combined).json()
+        assert filtered["total"] == 1 and filtered["items"][0]["id"] == str(cancelled_id)
+        assert admin.get(url, params={"room_id": str(uuid4())}).json()["total"] == 0
+        for params in (
+            {"date_from": "2024-01-10"},
+            {"date_to": "2024-01-10"},
+            date_filters | {"date_to": "2024-01-09"},
+            {"date_from": "invalid", "date_to": "2024-01-20"},
+            {"room_id": "invalid"},
+            {"status": "active"},
+            {"limit": 0},
+            {"limit": 101},
+            {"offset": -1},
+        ):
+            assert admin.get(url, params=params).status_code == 422
