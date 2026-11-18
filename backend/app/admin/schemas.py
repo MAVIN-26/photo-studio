@@ -1,10 +1,11 @@
-from datetime import date, datetime
+import re
+from datetime import date, datetime, time
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.bookings.schemas import BookingResponse, CreateBooking, ManualBookingSource
+from app.bookings.schemas import BookingResponse, BookingVersion, CreateBooking, ManualBookingSource
 from app.rooms.schemas import RoomResponse
 
 
@@ -42,3 +43,29 @@ class ChangedAdminBooking(AdminBooking):
 
 class CreateManualBooking(CreateBooking):
     source: ManualBookingSource
+
+
+class RoomSettingsPatch(BookingVersion):
+    hourly_price_minor: int | None = Field(default=None, gt=0, le=2_147_483_647, strict=True)
+    opens_at: time | None = None
+    closes_at: time | None = None
+
+    @field_validator("hourly_price_minor", "opens_at", "closes_at", mode="before")
+    @classmethod
+    def reject_null(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("Укажите значение поля")
+        return value
+
+    @field_validator("opens_at", "closes_at", mode="before")
+    @classmethod
+    def validate_hour(cls, value: object) -> object:
+        if not isinstance(value, str) or not re.fullmatch(r"(?:09|1[0-9]|2[0-3]):00", value):
+            raise ValueError("Укажите целый час в диапазоне 09:00–23:00")
+        return value
+
+    @model_validator(mode="after")
+    def require_change(self):
+        if self.model_fields_set == {"version"}:
+            raise ValueError("Укажите цену или часы работы зала")
+        return self

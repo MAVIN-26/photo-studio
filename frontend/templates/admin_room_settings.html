@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Настройки залов — LumenBook{% endblock %}
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', path='/admin.css') }}">
+  <script type="module" src="{{ url_for('static', path='/admin-room-settings.js') }}"></script>
+{% endblock %}
+{% block content %}
+<div class="admin-layout">
+  {% include "components/admin_sidebar.html" %}
+  <main class="admin-main">
+    <form id="room-settings" novalidate>
+      <header class="admin-toolbar room-settings-toolbar">
+        <div>
+          <h1>Настройки залов</h1>
+          <p>Изменения сразу видны в каталоге и при выборе времени.</p>
+        </div>
+        <button type="submit" class="button primary" disabled>Сохранить изменения</button>
+      </header>
+      <p class="room-settings-summary" role="status" hidden></p>
+      <div class="room-settings-grid">
+        {% for room in rooms %}
+        <section class="room-settings-card" data-room-id="{{ room.id }}" data-version="{{ room.version }}"
+                 data-price="{{ room.hourly_price_minor }}" aria-labelledby="room-title-{{ room.id }}">
+          {% if room.image_url %}<img src="{{ room.image_url }}" alt="" width="343" height="172">{% endif %}
+          <div class="room-settings-heading">
+            <h2 id="room-title-{{ room.id }}">{{ room.name }}</h2>
+            <span class="room-settings-badge" hidden>Изменено</span>
+          </div>
+          <fieldset disabled>
+            <div class="field">
+              <label for="price-{{ room.id }}">Цена за час, ₽</label>
+              <input id="price-{{ room.id }}" name="hourly_price_minor" inputmode="decimal" maxlength="20"
+                     value="{{ room.hourly_price_minor | price }}" aria-describedby="error-{{ room.id }}" required>
+            </div>
+            <div class="room-settings-hours">
+              <strong>Часы работы</strong>
+              <div>
+                {% for field, title, current in [('opens_at', 'С', room.opens_at), ('closes_at', 'До', room.closes_at)] %}
+                <label>{{ title }}
+                  <select class="admin-control" name="{{ field }}" aria-describedby="error-{{ room.id }}">
+                    {% for hour in hours %}
+                    <option value="{{ '%02d:00' | format(hour) }}"{% if hour == current.hour %} selected{% endif %}>{{ '%02d:00' | format(hour) }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+                {% endfor %}
+              </div>
+              <small>Не шире 09:00–23:00</small>
+            </div>
+          </fieldset>
+          {% if room.description %}
+          <section class="room-settings-description"><h3>Описание</h3><p>{{ room.description }}</p></section>
+          {% endif %}
+          <p id="error-{{ room.id }}" class="room-settings-error" role="alert" hidden></p>
+          <p class="room-settings-feedback" role="status" hidden></p>
+          <button type="button" class="text-button" data-refresh-room hidden>Загрузить актуальные настройки</button>
+        </section>
+        {% else %}
+        <p>Залы пока не добавлены.</p>
+        {% endfor %}
+      </div>
+      <noscript><p>Для изменения настроек включите JavaScript.</p></noscript>
+    </form>
+    <p class="form-error" id="form-error" role="alert" hidden></p>
+  </main>
+</div>
+{% endblock %}

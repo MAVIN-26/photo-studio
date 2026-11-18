@@ -2,11 +2,11 @@ from datetime import date, timedelta
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.admin.service import read_schedule
-from app.auth.dependencies import optional_user, require_admin
+from app.auth.dependencies import optional_user
 from app.auth.models import User
 from app.bookings import service
 from app.bookings.service import HOUR, allowed_actions, list_bookings, owned_booking
@@ -140,6 +140,32 @@ def reschedule_page(booking_id: UUID, request: Request, user: OptionalUser, db: 
     )
 
 
+def admin_page_denial(request: Request, user: User | None):
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if user.role != "admin":
+        return request.app.state.templates.TemplateResponse(
+            request=request, name="forbidden.html", status_code=403, context={"user": user}
+        )
+    return None
+
+
+@router.get("/admin/rooms", response_class=HTMLResponse)
+def admin_room_settings(request: Request, user: OptionalUser, db: Database):
+    denial = admin_page_denial(request, user)
+    if denial is not None:
+        return denial
+    return request.app.state.templates.TemplateResponse(
+        request=request,
+        name="admin_room_settings.html",
+        context={
+            "user": user,
+            "rooms": list_rooms(db),
+            "hours": range(FIRST_HOUR, LAST_HOUR + 1),
+        },
+    )
+
+
 @router.get("/admin", response_class=HTMLResponse)
 def admin_page(
     request: Request,
@@ -147,14 +173,9 @@ def admin_page(
     db: Database,
     selected_date: Annotated[date | None, Query(alias="date")] = None,
 ):
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-    try:
-        require_admin(user)
-    except HTTPException:
-        return request.app.state.templates.TemplateResponse(
-            request=request, name="forbidden.html", status_code=403, context={"user": user}
-        )
+    denial = admin_page_denial(request, user)
+    if denial is not None:
+        return denial
     today = service.studio_now().date()
     day = selected_date or today
     schedule = read_schedule(db, day, day)
