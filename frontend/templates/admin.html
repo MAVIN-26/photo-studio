@@ -19,8 +19,14 @@
         <input class="admin-control" type="date" name="date" value="{{ day }}" aria-label="Выбрать дату" required>
         <button class="admin-control" type="submit">Показать</button>
       </form>
-      {% if columns %}<button class="button primary admin-new-booking" type="button" data-new-booking disabled>+ Новая бронь</button>{% endif %}
+      {% if columns %}
+      <div class="admin-toolbar-actions">
+        <button class="admin-control" type="button" data-new-block disabled>Закрыть время</button>
+        <button class="button primary" type="button" data-new-booking disabled>+ Новая бронь</button>
+      </div>
+      {% endif %}
     </header>
+    <p class="admin-schedule-notice" role="status" hidden></p>
     {% if columns %}
     <div class="admin-scroll" tabindex="0" aria-label="Расписание залов">
       <section class="admin-grid" style="--room-count: {{ columns | length }}" data-day="{{ day }}" data-now="{{ schedule.server_now.isoformat() }}">
@@ -50,10 +56,11 @@
             {% for item in column.entries %}
               {% set entry = item.entry %}
               {% if entry.status == 'active' %}
-              <div class="admin-entry is-closed" style="grid-row: {{ item.row }} / span {{ item.span }}">
+              <button type="button" class="admin-entry is-closed" data-block-id="{{ entry.id }}"
+                      style="grid-row: {{ item.row }} / span {{ item.span }}" aria-haspopup="dialog">
                 <strong>{{ 'Уборка' if entry.reason == 'cleaning' else 'Ремонт' }}</strong>
                 <small>{{ item.time }}</small>
-              </div>
+              </button>
               {% else %}
               <button class="admin-entry" type="button" data-booking-id="{{ entry.id }}" data-status="{{ entry.status }}"
                       style="grid-row: {{ item.row }} / span {{ item.span }}" aria-haspopup="dialog">
@@ -133,4 +140,5 @@
   </form>
 </dialog>
 {% if columns %}{% include "components/admin_create_booking.html" %}{% endif %}
+{% if columns %}{% include "components/admin_time_blocks.html" %}{% endif %}
 {% endblock %}

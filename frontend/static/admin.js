@@ -1,5 +1,6 @@
 import { getJson, openBookingPage } from './booking-http.js';
 import { initManualBooking } from './admin-create-booking.js';
+import { initTimeBlocks } from './admin-blocks.js';
 
 const grid = document.querySelector('.admin-grid');
 const panel = document.querySelector('#booking-details');
@@ -302,6 +303,11 @@ dateForm.elements.date.addEventListener('change', () => dateForm.requestSubmit()
 const openedId = new URLSearchParams(location.search).get('booking');
 if (openedId && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(openedId)) {
   openBooking(openedId, readNotice());
+} else {
+  const feedback = readNotice();
+  const scheduleNotice = document.querySelector('.admin-schedule-notice');
+  scheduleNotice.textContent = feedback;
+  scheduleNotice.hidden = !feedback;
 }
 
 if (grid) {
@@ -329,3 +335,4 @@ if (grid) {
 }
 
 initManualBooking({grid, localDate, timeFormat, priceFormat, pathFor});
+initTimeBlocks({grid, localDate, timeFormat, timeRange});

@@ -1,0 +1,59 @@
+<dialog class="admin-drawer" id="admin-block-create" aria-labelledby="admin-block-create-title">
+  <header>
+    <h2 id="admin-block-create-title">Закрыть время</h2>
+    <button type="button" class="admin-control" data-close aria-label="Закрыть форму">×</button>
+  </header>
+  <form class="admin-drawer-body admin-create-form">
+    <p class="admin-muted">Клиенты сразу увидят это время как недоступное. Закрыть можно только свободные часы.</p>
+    <p class="admin-create-error" role="alert" hidden></p>
+    <label>Зал
+      <select class="admin-control" name="room" required>
+        {% for column in columns %}<option value="{{ column.room.id }}">{{ column.room.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Дата
+      <input class="admin-control" type="date" name="day" min="{{ today }}" max="{{ last_booking_day }}" required>
+    </label>
+    <div class="admin-create-fields">
+      <label>С <select class="admin-control" name="start" required disabled></select></label>
+      <label>По <select class="admin-control" name="end" required disabled></select></label>
+    </div>
+    <p class="admin-muted" role="status" data-availability></p>
+    <button class="text-button" type="button" data-retry hidden>Обновить доступность</button>
+    <fieldset class="admin-block-reason">
+      <legend>Причина</legend>
+      <label><input type="radio" name="reason" value="cleaning" checked> Уборка</label>
+      <label><input type="radio" name="reason" value="repair"> Ремонт</label>
+    </fieldset>
+    <div class="admin-drawer-actions">
+      <button class="button primary" type="submit" disabled>Закрыть время</button>
+      <button class="admin-control" type="button" data-close>Отмена</button>
+    </div>
+  </form>
+</dialog>
+<dialog class="admin-drawer" id="admin-block-detail" aria-labelledby="admin-block-detail-title">
+  <header>
+    <h2 id="admin-block-detail-title">Блокировка времени</h2>
+    <form method="dialog">
+      <button class="admin-control" aria-label="Закрыть карточку" autofocus>×</button>
+    </form>
+  </header>
+  <div class="admin-drawer-body">
+    <p role="status" data-block-state></p>
+    <dl hidden>
+      <div><dt>Зал</dt><dd data-block-room></dd></div>
+      <div><dt>Дата</dt><dd data-block-day></dd></div>
+      <div><dt>Время</dt><dd data-block-interval></dd></div>
+      <div><dt>Причина</dt><dd data-block-reason></dd></div>
+    </dl>
+    <p class="admin-create-error" role="alert" hidden></p>
+    <button class="admin-control admin-danger" type="button" data-remove-block hidden>Снять блокировку</button>
+    <div data-confirm-removal hidden>
+      <p>Снять блокировку? Клиенты снова смогут бронировать это время.</p>
+      <div class="admin-drawer-actions">
+        <button class="admin-control" type="button" data-keep-block>Оставить блокировку</button>
+        <button class="button primary admin-danger-button" type="button" data-confirm-remove>Снять блокировку</button>
+      </div>
+    </div>
+  </div>
+</dialog>

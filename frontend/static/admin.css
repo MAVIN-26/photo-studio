@@ -440,8 +440,39 @@ button.admin-entry:hover {
     grid-template-columns: minmax(0, 1fr);
   }
 }
-.admin-new-booking {
+.admin-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-inline-start: auto;
+}
+.admin-schedule-notice {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #ece9fd;
+}
+.admin-block-reason {
+  min-inline-size: 0;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+}
+.admin-block-reason legend {
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.admin-block-reason label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 10px 0 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--muted);
+}
+.admin-block-reason input {
+  accent-color: var(--accent);
 }
 .admin-create-slot {
   border: 0;

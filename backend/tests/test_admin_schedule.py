@@ -442,3 +442,103 @@ def test_room_settings_preserve_bookings_and_reject_conflicts(database, monkeypa
         price_change = next(event for event in events if "hourly_price_minor" in event["after"])
         assert price_change["before"]["hourly_price_minor"] == first["hourly_price_minor"]
         assert price_change["after"]["hourly_price_minor"] == 230_025
+
+
+def test_time_blocks_share_calendar_and_keep_history(database, monkeypatch):
+    from app.bookings import service
+    from app.main import create_app
+    from scripts.seed_rooms import seed_rooms
+
+    engine, settings, _ = database
+    seed_rooms(engine)
+    email = "block-admin@example.ru"
+    with Session(engine) as db:
+        create_admin(db, "Администратор", email, PASSWORD)
+        db.commit()
+
+    now = datetime(2026, 11, 18, 11, tzinfo=STUDIO_ZONE)
+    monkeypatch.setattr(service, "studio_now", lambda: now)
+    app = create_app(settings)
+    with TestClient(app) as client, TestClient(app) as admin:
+        client_headers = register(client, "block-client@example.ru")
+        token = admin.get("/api/v1/auth/csrf").json()["csrf_token"]
+        login = admin.post(
+            "/api/v1/auth/login",
+            headers={"X-CSRF-Token": token},
+            json={"identifier": email, "password": PASSWORD},
+        )
+        assert login.status_code == 200
+        headers = {"X-CSRF-Token": login.json()["csrf_token"]}
+        day = now.date()
+        body = booking_body(
+            client, starts_at=f"{day}T13:00:00+03:00", ends_at=f"{day}T15:00:00+03:00"
+        )
+        block = {key: body[key] for key in ("room_id", "starts_at", "ends_at")} | {
+            "reason": "cleaning"
+        }
+        url = "/api/v1/admin/blocks"
+        assert client.post(url, json=block, headers=client_headers).status_code == 403
+        assert admin.post(url, json=block).status_code == 403
+        for fields in (
+            {"reason": "other"},
+            {"starts_at": f"{day}T13:30:00+03:00"},
+            {"starts_at": f"{day}T10:00:00+03:00"},
+            {"ends_at": f"{day}T23:30:00+03:00"},
+            {"ends_at": f"{day}T13:00:00+03:00"},
+            {"contact_name": "Лишнее поле"},
+        ):
+            assert admin.post(url, json=block | fields, headers=headers).status_code == 422
+        created = admin.post(url, json=block, headers=headers)
+        assert created.status_code == 201, created.text
+        active = created.json()
+        assert active["reason"] == "cleaning" and active["status"] == "active"
+        detail = created.headers["Location"]
+        assert admin.get(detail).json()["id"] == active["id"]
+        assert client.get(detail).status_code == 403
+        assert (
+            client.post(detail + "/cancel", json={"version": 1}, headers=client_headers).status_code
+            == 403
+        )
+        slots = f"/api/v1/rooms/{body['room_id']}/availability?date={day}"
+        data = client.get(slots).json()["slots"]
+        assert all(not slot["available"] for slot in data[4:6])
+        assert set(data[4]) == {"starts_at", "ends_at", "available"}
+        conflict = client.post("/api/v1/bookings", json=body, headers=client_headers)
+        assert conflict.json()["error"]["code"] == "SLOT_UNAVAILABLE"
+        assert (
+            admin.post(url, json=block | {"reason": "repair"}, headers=headers).status_code == 409
+        )
+        schedule_url = f"/api/v1/admin/schedule?date_from={day}&date_to={day}"
+        assert admin.get(schedule_url).json()["blocks"][0]["id"] == active["id"]
+
+        cancelled = admin.post(detail + "/cancel", json={"version": 1}, headers=headers)
+        assert cancelled.status_code == 200
+        assert cancelled.json()["status"] == "cancelled" and cancelled.json()["version"] == 2
+        assert admin.get(detail).json()["status"] == "cancelled"
+        assert admin.get(schedule_url).json()["blocks"] == []
+        assert all(slot["available"] for slot in client.get(slots).json()["slots"][4:6])
+        for version, code in [(1, "VERSION_CONFLICT"), (2, "INVALID_BLOCK_STATE")]:
+            result = admin.post(detail + "/cancel", json={"version": version}, headers=headers)
+            assert result.status_code == 409 and result.json()["error"]["code"] == code
+
+        booked = client.post("/api/v1/bookings", json=body, headers=client_headers)
+        assert booked.status_code == 201
+        conflict = admin.post(url, json=block, headers=headers)
+        assert conflict.json()["error"]["code"] == "SLOT_UNAVAILABLE"
+        assert admin.get(f"{url}/{booked.json()['id']}").status_code == 404
+
+        repair = block | {
+            "starts_at": f"{day}T15:00:00+03:00",
+            "ends_at": f"{day}T16:00:00+03:00",
+            "reason": "repair",
+        }
+        repair_result = admin.post(url, json=repair, headers=headers)
+        assert repair_result.status_code == 201
+        assert repair_result.json()["reason"] == "repair"
+        assert "data-block-id" in admin.get("/admin", params={"date": day}).text
+
+        with engine.connect() as connection:
+            events = connection.scalars(
+                select(EventLog.event_type).where(EventLog.entry_id == active["id"])
+            ).all()
+        assert sorted(events) == ["block_cancelled", "block_created"]
