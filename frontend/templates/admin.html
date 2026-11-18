@@ -1,21 +1,109 @@
 {% extends "base.html" %}
-{% block title %}Администратор — LumenBook{% endblock %}
+{% from "components/icons.html" import icon %}
+{% block title %}Расписание — LumenBook{% endblock %}
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', path='/admin.css') }}">
+  <script type="module" src="{{ url_for('static', path='/admin.js') }}"></script>
+{% endblock %}
 {% block content %}
-<header class="site-header">
-  <a class="logo" href="/">Lumen<span>Book</span></a>
-  <nav aria-label="Аккаунт"><span>{{ user.name }} · Администратор</span><button class="text-button" data-logout type="button">Выйти</button></nav>
-</header>
-<main class="page-content">
-  <h1>Залы студии</h1>
-  <div class="room-grid">
-    {% for room in rooms %}
-    <article class="surface">
-      <h2>{{ room.name }}</h2>
-      <p>{{ '{:,.0f}'.format(room.hourly_price_minor / 100).replace(',', ' ') }} ₽ / час</p>
-      <p>{{ room.opens_at.strftime('%H:%M') }}–{{ room.closes_at.strftime('%H:%M') }}</p>
-    </article>
-    {% endfor %}
+{% set statuses = {'pending_payment': 'Ожидает оплаты', 'paid': 'Оплачено', 'confirmed': 'Подтверждено', 'cancelled': 'Отменено'} %}
+<div class="admin-layout">
+  <aside class="admin-sidebar">
+    <a class="logo" href="/admin">Lumen<span>Book</span></a>
+    <nav aria-label="Кабинет администратора">
+      <a href="/admin" aria-current="page">Расписание</a>
+    </nav>
+    <div class="admin-account">
+      <strong>{{ user.name }}</strong>
+      <small>{{ user.email or user.phone }}</small>
+      <button type="button" class="text-button" data-logout>{{ icon('logout') }} Выйти</button>
+    </div>
+  </aside>
+  <main class="admin-main">
+    <header class="admin-toolbar">
+      <h1>Расписание</h1>
+      <a class="admin-control" href="/admin">Сегодня</a>
+      {% if previous %}<a class="admin-control" href="?date={{ previous }}" aria-label="Предыдущий день">‹</a>{% endif %}
+      {% if next %}<a class="admin-control" href="?date={{ next }}" aria-label="Следующий день">›</a>{% endif %}
+      <strong>{{ date_label }}</strong>
+      <form class="admin-date-form" action="/admin">
+        <input class="admin-control" type="date" name="date" value="{{ day }}" aria-label="Выбрать дату" required>
+        <button class="admin-control" type="submit">Показать</button>
+      </form>
+    </header>
+    {% if columns %}
+    <div class="admin-scroll" tabindex="0" aria-label="Расписание залов">
+      <section class="admin-grid" style="--room-count: {{ columns | length }}" data-day="{{ day }}" data-now="{{ schedule.server_now.isoformat() }}">
+        <div class="admin-axis">
+          <div class="admin-column-heading">МСК</div>
+          {% for hour in hours %}<div class="admin-hour">{{ '%02d:00' | format(hour) }}</div>{% endfor %}
+        </div>
+        {% for column in columns %}
+        <section class="admin-room" aria-labelledby="room-{{ column.room.id }}">
+          <div class="admin-column-heading">
+            <strong id="room-{{ column.room.id }}">{{ column.room.name }}</strong>
+            <small>{{ column.room.hourly_price_minor | price }} ₽/ч · Броней: {{ column.count }}</small>
+          </div>
+          <div class="admin-room-grid">
+            {% for hour in hours %}
+              {% set label = '%02d:00' | format(hour) %}
+              {% set closed = label < column.room.opens_at.strftime('%H:%M') or label >= column.room.closes_at.strftime('%H:%M') %}
+              <div class="admin-slot{% if closed %} is-closed{% endif %}" data-hour="{{ hour }}"
+                   style="grid-row: {{ loop.index }}" title="{{ label }}{% if closed %} · Зал закрыт{% endif %}"></div>
+            {% endfor %}
+            {% for item in column.entries %}
+              {% set entry = item.entry %}
+              {% if entry.status == 'active' %}
+              <div class="admin-entry is-closed" style="grid-row: {{ item.row }} / span {{ item.span }}">
+                <strong>{{ 'Уборка' if entry.reason == 'cleaning' else 'Ремонт' }}</strong>
+                <small>{{ item.time }}</small>
+              </div>
+              {% else %}
+              <button class="admin-entry" type="button" data-booking-id="{{ entry.id }}" data-status="{{ entry.status }}"
+                      style="grid-row: {{ item.row }} / span {{ item.span }}" aria-haspopup="dialog">
+                <strong>{{ entry.contact_name }}{% if entry.comment %}<span class="admin-comment-mark" title="Есть комментарий" aria-label="Есть комментарий">▤</span>{% endif %}</strong>
+                <small>{{ statuses[entry.status] }} · {{ item.time }} · {{ item.span }} ч</small>
+              </button>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </section>
+        {% endfor %}
+        {% if day == today %}<div class="admin-now" hidden><time></time></div>{% endif %}
+      </section>
+    </div>
+    <ul class="admin-legend" aria-label="Обозначения">
+      {% for status, title in statuses.items() %}
+        {% if status != 'cancelled' %}<li class="admin-status" data-status="{{ status }}">{{ title }}</li>{% endif %}
+      {% endfor %}
+      <li class="is-closed">Закрыто</li><li class="is-past">Прошло</li>
+    </ul>
+    {% if not schedule.bookings and not schedule.blocks %}<p class="admin-muted">На этот день записей нет.</p>{% endif %}
+    {% else %}
+    <p>Залы пока не добавлены.</p>
+    {% endif %}
+    <p class="form-error" id="form-error" role="alert" hidden></p>
+  </main>
+</div>
+<dialog class="admin-drawer" id="booking-details" aria-labelledby="booking-heading">
+  <header>
+    <h2 id="booking-heading">Бронь</h2>
+    <form method="dialog"><button type="submit" class="admin-control" aria-label="Закрыть карточку" autofocus>×</button></form>
+  </header>
+  <p class="admin-drawer-message" role="status" hidden></p>
+  <div class="admin-drawer-body" hidden>
+    <span class="admin-status" data-field="status"></span>
+    <dl>
+      <div><dt>Клиент</dt><dd data-field="contact_name"></dd></div>
+      <div><dt>Телефон</dt><dd data-field="contact_phone"></dd></div>
+      <div><dt>Зал</dt><dd data-field="room"></dd></div>
+      <div><dt>Дата</dt><dd data-field="date"></dd></div>
+      <div><dt>Время</dt><dd data-field="time"></dd></div>
+      <div><dt>Сумма</dt><dd data-field="total"></dd></div>
+      <div><dt>Создана</dt><dd data-field="created"></dd></div>
+      <div><dt>Источник</dt><dd data-field="source"></dd></div>
+    </dl>
+    <section class="admin-note" hidden><h3>Комментарий клиента</h3><p data-field="comment"></p></section>
   </div>
-  <p class="form-error" id="form-error" role="alert" hidden></p>
-</main>
+</dialog>
 {% endblock %}

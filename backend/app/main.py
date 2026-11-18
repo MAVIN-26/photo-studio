@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.admin.router import router as admin_router
 from app.auth.router import router as auth_router
 from app.bookings.router import router as bookings_router
 from app.config import PROJECT_ROOT, Settings, get_settings
@@ -47,6 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(auth_router)
     application.include_router(rooms_router)
     application.include_router(bookings_router)
+    application.include_router(admin_router)
     application.include_router(web_router)
 
     @application.middleware("http")
