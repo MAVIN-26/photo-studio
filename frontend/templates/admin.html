@@ -30,6 +30,7 @@
         <input class="admin-control" type="date" name="date" value="{{ day }}" aria-label="Выбрать дату" required>
         <button class="admin-control" type="submit">Показать</button>
       </form>
+      {% if columns %}<button class="button primary admin-new-booking" type="button" data-new-booking disabled>+ Новая бронь</button>{% endif %}
     </header>
     {% if columns %}
     <div class="admin-scroll" tabindex="0" aria-label="Расписание залов">
@@ -48,8 +49,14 @@
             {% for hour in hours %}
               {% set label = '%02d:00' | format(hour) %}
               {% set closed = label < column.room.opens_at.strftime('%H:%M') or label >= column.room.closes_at.strftime('%H:%M') %}
+              {% if day <= last_booking_day and hour in column.free_hours %}
+              <button class="admin-slot admin-create-slot" type="button" data-hour="{{ hour }}"
+                      data-new-booking data-room-id="{{ column.room.id }}" style="grid-row: {{ loop.index }}"
+                      aria-label="Новая бронь: {{ column.room.name }}, {{ label }}" disabled><span>+ Бронь</span></button>
+              {% else %}
               <div class="admin-slot{% if closed %} is-closed{% endif %}" data-hour="{{ hour }}"
                    style="grid-row: {{ loop.index }}" title="{{ label }}{% if closed %} · Зал закрыт{% endif %}"></div>
+              {% endif %}
             {% endfor %}
             {% for item in column.entries %}
               {% set entry = item.entry %}
@@ -76,7 +83,7 @@
       {% for status, title in statuses.items() %}
         {% if status != 'cancelled' %}<li class="admin-status" data-status="{{ status }}">{{ title }}</li>{% endif %}
       {% endfor %}
-      <li class="is-closed">Закрыто</li><li class="is-past">Прошло</li>
+      <li class="is-closed">Закрыто</li><li class="is-past">Прошло</li><li>Свободно · + Бронь</li>
     </ul>
     {% if not schedule.bookings and not schedule.blocks %}<p class="admin-muted">На этот день записей нет.</p>{% endif %}
     {% else %}
@@ -136,4 +143,5 @@
     </div>
   </form>
 </dialog>
+{% if columns %}{% include "components/admin_create_booking.html" %}{% endif %}
 {% endblock %}

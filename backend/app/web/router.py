@@ -166,6 +166,7 @@ def admin_page(
             "schedule": schedule,
             "day": day,
             "today": today,
+            "last_booking_day": today + service.BOOKING_HORIZON,
             "date_label": date_label(day),
             "hours": range(FIRST_HOUR, LAST_HOUR),
             "previous": day - timedelta(days=1) if day.toordinal() > 1 else None,

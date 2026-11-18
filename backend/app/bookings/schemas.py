@@ -8,6 +8,7 @@ from app.auth.schemas import normalize_phone
 
 BookingStatus = Literal["pending_payment", "paid", "confirmed", "cancelled"]
 BookingScope = Literal["all", "upcoming", "past"]
+ManualBookingSource = Literal["phone", "telegram", "vk"]
 
 
 class BookingInterval(BaseModel):

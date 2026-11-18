@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from app.bookings.schemas import BookingResponse
+from app.bookings.schemas import BookingResponse, CreateBooking, ManualBookingSource
 from app.rooms.schemas import RoomResponse
 
 
@@ -38,3 +38,7 @@ class AdminBooking(BookingResponse):
 
 class ChangedAdminBooking(AdminBooking):
     message: str
+
+
+class CreateManualBooking(CreateBooking):
+    source: ManualBookingSource

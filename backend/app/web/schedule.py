@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, time
 
 from app.admin.schemas import AdminSchedule
 from app.bookings import service
@@ -34,9 +34,11 @@ def schedule_columns(schedule: AdminSchedule) -> list[dict]:
     for room in schedule.rooms:
         entries = entries_by_room[room.id]
         blocks = []
+        occupied = set()
         for entry in entries:
             start = entry.starts_at.astimezone(service.STUDIO_ZONE)
             end = entry.ends_at.astimezone(service.STUDIO_ZONE)
+            occupied.update(range(start.hour, end.hour))
             blocks.append(
                 {
                     "entry": entry,
@@ -50,6 +52,13 @@ def schedule_columns(schedule: AdminSchedule) -> list[dict]:
                 "room": room,
                 "entries": blocks,
                 "count": sum(entry.status != "active" for entry in entries),
+                "free_hours": {
+                    hour
+                    for hour in range(room.opens_at.hour, room.closes_at.hour)
+                    if hour not in occupied
+                    and datetime.combine(schedule.date_from, time(hour), service.STUDIO_ZONE)
+                    > schedule.server_now
+                },
             }
         )
     return columns
