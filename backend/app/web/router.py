@@ -1,17 +1,18 @@
+from datetime import date, timedelta
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import select
 
+from app.admin.service import read_schedule
 from app.auth.dependencies import optional_user, require_admin
 from app.auth.models import User
 from app.bookings import service
 from app.bookings.service import HOUR, allowed_actions, list_bookings, owned_booking
 from app.dependencies import Database
-from app.rooms.models import Room
 from app.rooms.service import get_room, list_rooms
+from app.web.schedule import FIRST_HOUR, LAST_HOUR, date_label, schedule_columns
 
 router = APIRouter(include_in_schema=False)
 OptionalUser = Annotated[User | None, Depends(optional_user)]
@@ -140,7 +141,12 @@ def reschedule_page(booking_id: UUID, request: Request, user: OptionalUser, db: 
 
 
 @router.get("/admin", response_class=HTMLResponse)
-def admin_page(request: Request, user: OptionalUser, db: Database):
+def admin_page(
+    request: Request,
+    user: OptionalUser,
+    db: Database,
+    selected_date: Annotated[date | None, Query(alias="date")] = None,
+):
     if user is None:
         return RedirectResponse("/login", status_code=303)
     try:
@@ -149,7 +155,21 @@ def admin_page(request: Request, user: OptionalUser, db: Database):
         return request.app.state.templates.TemplateResponse(
             request=request, name="forbidden.html", status_code=403, context={"user": user}
         )
-    rooms = db.scalars(select(Room).order_by(Room.name)).all()
+    today = service.studio_now().date()
+    day = selected_date or today
+    schedule = read_schedule(db, day, day)
     return request.app.state.templates.TemplateResponse(
-        request=request, name="admin.html", context={"user": user, "rooms": rooms}
+        request=request,
+        name="admin.html",
+        context={
+            "user": user,
+            "schedule": schedule,
+            "day": day,
+            "today": today,
+            "date_label": date_label(day),
+            "hours": range(FIRST_HOUR, LAST_HOUR),
+            "previous": day - timedelta(days=1) if day.toordinal() > 1 else None,
+            "next": day + timedelta(days=1) if day < date.max - timedelta(days=1) else None,
+            "columns": schedule_columns(schedule),
+        },
     )
