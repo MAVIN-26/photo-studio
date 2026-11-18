@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.admin.schemas import (
     AdminBooking,
+    AdminBookingFilters,
     AdminSchedule,
     CreateBlock,
     CreateManualBooking,
@@ -15,10 +16,17 @@ from app.admin.schemas import (
 from app.auth.dependencies import fail
 from app.bookings import service
 from app.bookings.models import EventLog, ScheduleEntry
-from app.bookings.schemas import Availability, BookingResponse, RescheduleBooking
+from app.bookings.schemas import Availability, BookingList, BookingResponse, RescheduleBooking
 from app.rooms.models import Room
 from app.rooms.schemas import RoomResponse
 from app.rooms.service import get_room, list_rooms
+
+
+def date_bounds(date_from: date, date_to: date) -> tuple[datetime, datetime]:
+    return (
+        datetime.combine(date_from, time.min, service.STUDIO_ZONE),
+        datetime.combine(date_to + timedelta(days=1), time.min, service.STUDIO_ZONE),
+    )
 
 
 def read_schedule(
@@ -34,8 +42,7 @@ def read_schedule(
             fail(404, "ROOM_NOT_FOUND", "Зал не найден.")
         rooms = [room]
 
-    start = datetime.combine(date_from, time.min, service.STUDIO_ZONE)
-    end = datetime.combine(date_to + timedelta(days=1), time.min, service.STUDIO_ZONE)
+    start, end = date_bounds(date_from, date_to)
     entries = db.scalars(
         select(ScheduleEntry)
         .where(
@@ -50,9 +57,7 @@ def read_schedule(
     blocks = []
     for entry in entries:
         if entry.kind == "booking":
-            response = BookingResponse.model_validate(entry)
-            response.allowed_actions = admin_actions(entry)
-            bookings.append(response)
+            bookings.append(booking_response(entry))
         else:
             blocks.append(block_response(entry))
     return AdminSchedule(
@@ -63,6 +68,36 @@ def read_schedule(
         bookings=bookings,
         blocks=blocks,
     )
+
+
+def list_admin_bookings(db: Session, filters: AdminBookingFilters) -> BookingList:
+    conditions = [ScheduleEntry.kind == "booking"]
+    if filters.room_id is not None:
+        conditions.append(ScheduleEntry.room_id == filters.room_id)
+    if filters.status is not None:
+        conditions.append(ScheduleEntry.status == filters.status)
+
+    date_from, date_to = filters.date_from, filters.date_to
+    if (date_from is None) != (date_to is None):
+        fail(422, "DATE_OUT_OF_RANGE", "Укажите обе даты или оставьте оба поля пустыми.")
+    if date_from is not None and date_to is not None:
+        if date_from > date_to or date_to == date.max:
+            fail(422, "DATE_OUT_OF_RANGE", "Укажите допустимый диапазон дат.")
+        start, end = date_bounds(date_from, date_to)
+        conditions.extend((ScheduleEntry.starts_at < end, ScheduleEntry.ends_at > start))
+
+    total = db.scalar(select(func.count()).select_from(ScheduleEntry).where(*conditions)) or 0
+    items = []
+    if filters.offset < total:
+        entries = db.scalars(
+            select(ScheduleEntry)
+            .where(*conditions)
+            .order_by(ScheduleEntry.starts_at, ScheduleEntry.id)
+            .offset(filters.offset)
+            .limit(filters.limit)
+        )
+        items = [booking_response(entry) for entry in entries]
+    return BookingList(items=items, total=total, limit=filters.limit, offset=filters.offset)
 
 
 def read_booking(db: Session, booking_id: UUID, *, lock: bool = False) -> ScheduleEntry:
@@ -146,6 +181,12 @@ def admin_actions(entry: ScheduleEntry) -> list[str]:
     return actions
 
 
+def booking_response(entry: ScheduleEntry) -> BookingResponse:
+    result = BookingResponse.model_validate(entry)
+    result.allowed_actions = admin_actions(entry)
+    return result
+
+
 def admin_booking_response(db: Session, entry: ScheduleEntry) -> AdminBooking:
     room = get_room(db, entry.room_id)
     if room is None:
@@ -157,8 +198,7 @@ def admin_booking_response(db: Session, entry: ScheduleEntry) -> AdminBooking:
         .order_by(EventLog.created_at, EventLog.id)
     )
     timestamps = {event_type: created_at for event_type, created_at in events}
-    result = BookingResponse.model_validate(entry)
-    result.allowed_actions = admin_actions(entry)
+    result = booking_response(entry)
     return AdminBooking(
         **result.model_dump(),
         room_name=room.name,
