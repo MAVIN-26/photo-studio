@@ -21,7 +21,22 @@
         {% for room in rooms %}
         <section class="room-settings-card" data-room-id="{{ room.id }}" data-version="{{ room.version }}"
                  data-price="{{ room.hourly_price_minor }}" aria-labelledby="room-title-{{ room.id }}">
-          {% if room.image_url %}<img src="{{ room.image_url }}" alt="" width="343" height="172">{% endif %}
+          <section class="room-settings-media" aria-label="Изображения зала «{{ room.name }}»">
+            <div class="room-settings-cover">
+              <img {% if room.image_url %}src="{{ room.image_url }}"{% else %}hidden{% endif %} alt="" width="343" height="172">
+              <button class="admin-control" type="button" data-image-position="0" disabled>{{ 'Заменить' if room.image_url else 'Добавить обложку' }}</button>
+            </div>
+            <div class="room-settings-gallery" data-image-gallery>
+              {% for url in room.gallery_images %}
+              <div class="room-settings-thumbnail">
+                <img src="{{ url }}" alt="" width="68" height="44">
+                <button class="admin-control" type="button" data-image-position="{{ loop.index }}" disabled>Заменить фото {{ loop.index }}</button>
+              </div>
+              {% endfor %}
+            </div>
+            <button class="text-button" type="button" data-add-image data-image-position="{{ room.gallery_images | length + 1 }}" {% if room.gallery_images | length >= 5 %}hidden{% endif %} disabled>Добавить в галерею</button>
+            <input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Файл изображения для зала «{{ room.name }}»" data-image-file hidden>
+          </section>
           <div class="room-settings-heading">
             <h2 id="room-title-{{ room.id }}">{{ room.name }}</h2>
             <span class="room-settings-badge" hidden>Изменено</span>

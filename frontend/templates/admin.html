@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "components/icons.html" import icon %}
 {% block title %}Расписание — LumenBook{% endblock %}
 {% block head %}
   <link rel="stylesheet" href="{{ url_for('static', path='/admin.css') }}">
@@ -19,6 +20,21 @@
         <input class="admin-control" type="date" name="date" value="{{ day }}" aria-label="Выбрать дату" required>
         <button class="admin-control" type="submit">Показать</button>
       </form>
+      <div class="admin-calendar" data-admin-calendar data-date="{{ day }}" data-today="{{ today }}" hidden>
+        <button class="admin-control admin-calendar-toggle" type="button" aria-label="Выбрать дату" aria-expanded="false" aria-controls="schedule-calendar">{{ icon('calendar') }}</button>
+        <section class="admin-calendar-panel surface" id="schedule-calendar" role="dialog" aria-label="Календарь расписания" hidden>
+          <header>
+            <button class="admin-control" type="button" data-month-step="-1" aria-label="Предыдущий месяц">‹</button>
+            <strong data-calendar-month aria-live="polite"></strong>
+            <button class="admin-control" type="button" data-month-step="1" aria-label="Следующий месяц">›</button>
+          </header>
+          <div class="admin-calendar-days" aria-label="Дни месяца">
+            {% for day_name in ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] %}<span>{{ day_name }}</span>{% endfor %}
+          </div>
+          <div class="admin-calendar-days" data-calendar-days></div>
+          <footer><span>Выберите день</span><a href="/admin">Сегодня</a></footer>
+        </section>
+      </div>
       {% if columns %}
       <div class="admin-toolbar-actions">
         <button class="admin-control" type="button" data-new-block disabled>Закрыть время</button>

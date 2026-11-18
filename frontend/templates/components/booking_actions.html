@@ -1,6 +1,7 @@
 {% set available = actions[entry.id] %}
 {% if available %}
-<div class="booking-actions" data-booking-id="{{ entry.id }}" data-version="{{ entry.version }}">
+<div class="booking-actions" data-booking-id="{{ entry.id }}" data-version="{{ entry.version }}"
+     data-interval="«{{ booking_room_name }}» · {{ entry.starts_at | studio_day }} · {{ entry.starts_at | studio_format('%H:%M') }}–{{ entry.ends_at | studio_format('%H:%M') }} МСК.">
   {% if 'pay' in available %}
   <div>
     <button type="button" class="button primary compact" data-pay>Оплатить {{ entry.total_price_minor | price }} ₽</button>

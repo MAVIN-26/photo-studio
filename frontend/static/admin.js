@@ -1,6 +1,7 @@
 import { getJson, openBookingPage } from './booking-http.js';
 import { initManualBooking } from './admin-create-booking.js';
 import { initTimeBlocks } from './admin-blocks.js';
+import './admin-calendar.js';
 
 const grid = document.querySelector('.admin-grid');
 const panel = document.querySelector('#booking-details');

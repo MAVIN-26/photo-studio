@@ -1,7 +1,7 @@
 from datetime import datetime, time
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, Integer, String, Text, Time, func, text
+from sqlalchemy import ARRAY, CheckConstraint, DateTime, Integer, String, Text, Time, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -28,6 +28,9 @@ class Room(Base):
     name: Mapped[str] = mapped_column(String(100), unique=True)
     description: Mapped[str] = mapped_column(Text, default="", server_default="")
     image_url: Mapped[str | None] = mapped_column(String(500))
+    gallery_images: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), server_default=text("'{}'::text[]")
+    )
     hourly_price_minor: Mapped[int] = mapped_column(Integer)
     opens_at: Mapped[time] = mapped_column(Time)
     closes_at: Mapped[time] = mapped_column(Time)

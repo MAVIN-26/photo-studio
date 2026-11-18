@@ -1,8 +1,9 @@
-from datetime import date, datetime, timedelta
+from collections import defaultdict
+from datetime import date, datetime, time, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -39,18 +40,45 @@ def availability(
 ) -> Availability:
     now = studio_now()
     validate_booking_day(day, now)
-    opens = datetime.combine(day, room.opens_at, STUDIO_ZONE)
-    closes = datetime.combine(day, room.closes_at, STUDIO_ZONE)
-    query = select(ScheduleEntry.starts_at, ScheduleEntry.ends_at).where(
-        ScheduleEntry.room_id == room.id,
+    return daily_availability(db, [room], day, now, exclude_booking_id=exclude_booking_id)[room.id]
+
+
+def daily_availability(
+    db: Session,
+    rooms: list[Room],
+    day: date,
+    now: datetime,
+    *,
+    exclude_booking_id: UUID | None = None,
+) -> dict[UUID, Availability]:
+    if not rooms:
+        return {}
+    midnight = datetime.combine(day, time.min, STUDIO_ZONE)
+    query = select(
+        ScheduleEntry.room_id, ScheduleEntry.starts_at, ScheduleEntry.ends_at, ScheduleEntry.kind
+    ).where(
+        ScheduleEntry.room_id.in_([room.id for room in rooms]),
         ScheduleEntry.status != "cancelled",
-        ScheduleEntry.starts_at < closes,
-        ScheduleEntry.ends_at > opens,
+        ScheduleEntry.starts_at < midnight + timedelta(days=1),
+        ScheduleEntry.ends_at > midnight,
     )
     if exclude_booking_id is not None:
         query = query.where(ScheduleEntry.id != exclude_booking_id)
-    occupied = db.execute(query).all()
+    occupied: defaultdict[UUID, dict[datetime, str]] = defaultdict(dict)
+    for room_id, start, end, kind in db.execute(query):
+        while start < end:
+            occupied[room_id][start] = kind
+            start += HOUR
+    return {room.id: room_availability(room, day, now, occupied[room.id]) for room in rooms}
+
+
+def room_availability(
+    room: Room, day: date, now: datetime, occupied: dict[datetime, str]
+) -> Availability:
+    opens = datetime.combine(day, room.opens_at, STUDIO_ZONE)
+    closes = datetime.combine(day, room.closes_at, STUDIO_ZONE)
     slots = []
+    blocked_starts = []
     starts_at = opens
     while starts_at < closes:
         ends_at = starts_at + HOUR
@@ -58,10 +86,11 @@ def availability(
             Slot(
                 starts_at=starts_at,
                 ends_at=ends_at,
-                available=starts_at > now
-                and not any(start < ends_at and end > starts_at for start, end in occupied),
+                available=starts_at > now and starts_at not in occupied,
             )
         )
+        if occupied.get(starts_at) == "maintenance":
+            blocked_starts.append(starts_at)
         starts_at = ends_at
     return Availability(
         room_id=room.id,
@@ -70,6 +99,7 @@ def availability(
         room_version=room.version,
         hourly_price_minor=room.hourly_price_minor,
         slots=slots,
+        blocked_starts=blocked_starts,
     )
 
 
@@ -317,11 +347,40 @@ def list_bookings(
     if status is not None:
         filters.append(ScheduleEntry.status == status)
     total = db.scalar(select(func.count()).select_from(ScheduleEntry).where(*filters)) or 0
+    return booking_page(db, filters, limit, offset), total
+
+
+def booking_tabs(
+    db: Session, user_id: UUID, now: datetime, tab: str, limit: int, offset: int
+) -> tuple[list[ScheduleEntry], dict[str, int]]:
+    filters = [ScheduleEntry.user_id == user_id, ScheduleEntry.kind == "booking"]
+    past = ScheduleEntry.ends_at <= now
+    upcoming_count, past_count = db.execute(
+        select(func.count().filter(~past), func.count().filter(past))
+        .select_from(ScheduleEntry)
+        .where(*filters)
+    ).one()
+    filters.append(past if tab == "past" else ~past)
+    return booking_page(db, filters, limit, offset, newest_first=tab == "past"), {
+        "upcoming": upcoming_count,
+        "past": past_count,
+    }
+
+
+def booking_page(
+    db: Session,
+    filters: list[ColumnElement[bool]],
+    limit: int,
+    offset: int,
+    *,
+    newest_first: bool = False,
+) -> list[ScheduleEntry]:
+    order = ScheduleEntry.starts_at.desc() if newest_first else ScheduleEntry.starts_at.asc()
     items = db.scalars(
         select(ScheduleEntry)
         .where(*filters)
-        .order_by(ScheduleEntry.starts_at, ScheduleEntry.id)
+        .order_by(order, ScheduleEntry.id)
         .limit(limit)
         .offset(offset)
     )
-    return list(items), total
+    return list(items)

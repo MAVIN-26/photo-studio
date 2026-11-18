@@ -2,9 +2,10 @@ from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Path, Query, Request, Response
+from starlette.concurrency import run_in_threadpool
 
-from app.admin import service
+from app.admin import room_images, service
 from app.admin.schemas import (
     AdminBooking,
     AdminBookingFilters,
@@ -15,11 +16,12 @@ from app.admin.schemas import (
     RoomSettingsPatch,
     ScheduleBlock,
 )
-from app.auth.dependencies import CsrfSession, require_admin
+from app.auth.dependencies import CsrfSession, fail, require_admin
 from app.auth.models import User
 from app.bookings.schemas import Availability, BookingList, BookingVersion, RescheduleBooking
 from app.dependencies import Database
-from app.rooms.schemas import RoomResponse
+from app.rooms.schemas import RoomImages, RoomResponse
+from app.rooms.service import get_room
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 Admin = Annotated[User, Depends(require_admin)]
@@ -51,6 +53,35 @@ def update_room(
     room_id: UUID, body: RoomSettingsPatch, admin: Admin, db: Database, csrf: CsrfSession
 ):
     return service.update_room_settings(db, room_id, body, admin.id)
+
+
+@router.get("/rooms/{room_id}/images", response_model=RoomImages)
+def get_room_images(room_id: UUID, db: Database):
+    room = get_room(db, room_id)
+    if room is None:
+        fail(404, "ROOM_NOT_FOUND", "Зал не найден.")
+    return room
+
+
+@router.put("/rooms/{room_id}/images/{position}", response_model=RoomImages)
+async def upload_room_image(
+    room_id: UUID,
+    position: Annotated[int, Path(ge=0, le=room_images.MAX_GALLERY)],
+    version: Annotated[int, Query(ge=1)],
+    request: Request,
+    db: Database,
+    csrf: CsrfSession,
+):
+    data = bytearray()
+    async for chunk in request.stream():
+        if len(data) + len(chunk) > room_images.MAX_UPLOAD:
+            fail(413, "IMAGE_TOO_LARGE", "Изображение должно весить не больше 5 МБ.")
+        data.extend(chunk)
+    image = await run_in_threadpool(room_images.decode_image, data)
+    return await run_in_threadpool(
+        room_images.update_image, db, request.app.state.settings.room_media_dir,
+        room_id, position, version, image,
+    )
 
 
 @router.get("/schedule", response_model=AdminSchedule)

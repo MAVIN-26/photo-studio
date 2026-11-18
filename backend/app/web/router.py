@@ -1,18 +1,18 @@
 from datetime import date, timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from app.admin.service import read_schedule
-from app.auth.dependencies import optional_user
+from app.auth.dependencies import fail, optional_user
 from app.auth.models import User
 from app.bookings import service
-from app.bookings.service import HOUR, allowed_actions, list_bookings, owned_booking
+from app.bookings.service import HOUR, allowed_actions, booking_tabs, owned_booking
 from app.dependencies import Database
 from app.rooms.service import get_room, list_rooms
-from app.web.schedule import FIRST_HOUR, LAST_HOUR, date_label, schedule_columns
+from app.web.schedule import FIRST_HOUR, LAST_HOUR, date_label, schedule_columns, short_date
 
 router = APIRouter(include_in_schema=False)
 OptionalUser = Annotated[User | None, Depends(optional_user)]
@@ -20,10 +20,22 @@ OptionalUser = Annotated[User | None, Depends(optional_user)]
 
 @router.get("/", response_class=HTMLResponse)
 def home(request: Request, user: OptionalUser, db: Database):
+    rooms = list_rooms(db)
+    now = service.studio_now()
+    schedules = service.daily_availability(db, rooms, now.date(), now)
+    free_hours = {
+        room_id: [slot.starts_at.strftime("%H:%M") for slot in schedule.slots if slot.available]
+        for room_id, schedule in schedules.items()
+    }
     return request.app.state.templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={"user": user, "rooms": list_rooms(db)},
+        context={
+            "user": user,
+            "rooms": rooms,
+            "free_hours": free_hours,
+            "date": short_date(now.date()),
+        },
     )
 
 
@@ -45,12 +57,20 @@ def room_page(room_id: str, request: Request, user: OptionalUser, db: Database):
 
 @router.get("/login", response_class=HTMLResponse)
 @router.get("/register", response_class=HTMLResponse)
-def auth_page(request: Request, user: OptionalUser, room: str | None = None):
+def auth_page(
+    request: Request,
+    user: OptionalUser,
+    room: str | None = None,
+    next_page: Annotated[str | None, Query(alias="next")] = None,
+):
     try:
         room_id = UUID(room) if room else None
     except ValueError:
         room_id = None
     booking_return = f"/rooms/{room_id}#booking" if room_id else None
+    auth_query = f"?room={room_id}" if room_id else ""
+    if next_page == "bookings":
+        booking_return, auth_query = "/my/bookings", "?next=bookings"
     if user:
         target = "/admin" if user.role == "admin" else booking_return or "/"
         return RedirectResponse(target, status_code=303)
@@ -60,7 +80,7 @@ def auth_page(request: Request, user: OptionalUser, room: str | None = None):
         context={
             "register": request.url.path == "/register",
             "booking_return": booking_return,
-            "auth_query": f"?room={room_id}" if room_id else "",
+            "auth_query": auth_query,
         },
     )
 
@@ -71,23 +91,29 @@ def my_bookings(
     user: OptionalUser,
     db: Database,
     offset: Annotated[int, Query(ge=0)] = 0,
+    tab: Literal["upcoming", "past"] = "upcoming",
 ):
     if user is None:
-        return RedirectResponse("/login", status_code=303)
+        return RedirectResponse("/login?next=bookings", status_code=303)
     if user.role != "client":
         return RedirectResponse("/admin", status_code=303)
-    items, total = list_bookings(db, user.id, scope="all", status=None, limit=20, offset=offset)
-    rooms = {room.id: room.name for room in list_rooms(db)}
     now = service.studio_now()
+    items, counts = booking_tabs(db, user.id, now, tab, 20, offset)
+    if offset and offset >= counts[tab]:
+        return RedirectResponse(f"/my/bookings?tab={tab}", status_code=303)
     return request.app.state.templates.TemplateResponse(
         request=request,
         name="my_bookings.html",
         context={
             "user": user,
             "items": items,
-            "rooms": rooms,
+            "rooms": {room.id: room for room in list_rooms(db)},
+            "tab": tab,
+            "counts": counts,
+            "now": now,
             "offset": offset,
-            "total": total,
+            "total": counts[tab],
+            "studio_phone": request.app.state.settings.studio_phone,
             "actions": {entry.id: allowed_actions(entry, now) for entry in items},
         },
     )
@@ -139,6 +165,25 @@ def reschedule_page(booking_id: UUID, request: Request, user: OptionalUser, db: 
             "today": now.date(),
             "duration_hours": (entry.ends_at - entry.starts_at) // HOUR,
         },
+    )
+
+
+@router.get("/demo", response_class=HTMLResponse)
+def demo_page(request: Request, user: OptionalUser, db: Database):
+    return request.app.state.templates.TemplateResponse(
+        request=request,
+        name="demo.html",
+        context={"user": user, "rooms": {room.name: room for room in list_rooms(db)}},
+    )
+
+
+@router.get("/room-media/{image_id}.webp")
+def room_image(image_id: UUID, request: Request):
+    path = request.app.state.settings.room_media_dir / f"{image_id}.webp"
+    if not path.is_file():
+        fail(404, "IMAGE_NOT_FOUND", "Изображение не найдено.")
+    return FileResponse(
+        path, media_type="image/webp", headers={"X-Content-Type-Options": "nosniff"}
     )
 
 

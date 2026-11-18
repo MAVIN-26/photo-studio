@@ -90,6 +90,60 @@ def test_creation_occupies_time_and_preserves_owner_price_and_audit(app, databas
         assert client.get("/api/v1/bookings?scope=past").json()["total"] == 0
 
 
+def test_booking_tabs_keep_ongoing_and_cancelled_future_bookings(app, monkeypatch):
+    with TestClient(app) as client:
+        assert client.get("/my/bookings", follow_redirects=False).headers["location"] == (
+            "/login?next=bookings"
+        )
+        headers = register(client, "tabs@example.ru")
+        assert "У вас пока нет броней" in client.get("/my/bookings").text
+        future = DAY + timedelta(days=2)
+        for start, end in (
+            (f"{DAY}T13:00:00+03:00", f"{DAY}T15:00:00+03:00"),
+            (f"{future}T13:00:00+03:00", f"{future}T15:00:00+03:00"),
+        ):
+            body = booking_body(client, starts_at=start, ends_at=end)
+            result = client.post("/api/v1/bookings", headers=headers, json=body)
+            assert result.status_code == 201
+            if start.startswith(str(DAY)):
+                active = result.json()
+            else:
+                cancelled = result.json()
+        result = client.post(
+            f"/api/v1/bookings/{cancelled['id']}/cancel",
+            headers=headers,
+            json={"version": cancelled["version"]},
+        )
+        assert result.status_code == 200
+
+        monkeypatch.setattr(service, "studio_now", lambda: NOW.replace(hour=14))
+        page = client.get("/my/bookings").text
+        assert "Предстоящие · 2" in page
+        assert "Прошедшие · 0" in page
+        assert "Время освободилось для других клиентов" in page
+        assert active["id"] in page and cancelled["id"] in page
+
+        monkeypatch.setattr(service, "studio_now", lambda: NOW.replace(hour=15))
+        page = client.get("/my/bookings?tab=past").text
+        assert "Предстоящие · 1" in page
+        assert "Прошедшие · 1" in page
+        assert "Забронировать снова" in page
+        assert active["id"] in page and cancelled["id"] not in page
+
+
+def test_short_notice_shows_contact_and_disables_change(app):
+    app.state.settings.studio_phone = "+12025550100"
+    with TestClient(app) as client:
+        headers = register(client, "deadline@example.ru")
+        body = booking_body(client)
+        assert client.post("/api/v1/bookings", headers=headers, json=body).status_code == 201
+        page = client.get("/my/bookings").text
+        assert 'href="tel:+12025550100"' in page
+        assert "Перенос и отмена доступны не позднее чем за 24 часа" in page
+        assert "Оплатить" in page
+        assert "data-cancel" not in page
+
+
 def test_concurrent_clients_and_adjacent_slots(app, database):
     with TestClient(app) as first, TestClient(app) as second:
         headers = [register(first, "first@example.ru"), register(second, "second@example.ru")]

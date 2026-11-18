@@ -27,6 +27,9 @@ const cards = [...form.querySelectorAll('[data-room-id]')].map(element => {
     error: element.querySelector('.room-settings-error'),
     feedback: element.querySelector('.room-settings-feedback'),
     reload: element.querySelector('[data-refresh-room]'),
+    media: element.querySelector('.room-settings-media'),
+    file: element.querySelector('[data-image-file]'),
+    pendingPosition: null,
     needsReload: false,
     loading: false,
   };
@@ -70,6 +73,9 @@ function render() {
     card.fieldset.disabled = saving || card.loading;
     card.reload.hidden = !card.needsReload;
     card.reload.disabled = saving || card.loading;
+    for (const button of card.media.querySelectorAll('button')) {
+      button.disabled = saving || card.loading || card.needsReload;
+    }
     canSave ||= changed && !card.needsReload && !card.loading;
   }
   save.disabled = saving || !canSave;
@@ -99,6 +105,33 @@ function applyVersion(card, room, preserve = []) {
   card.needsReload = false;
 }
 
+function renderImages(card, room) {
+  const cover = card.media.querySelector('.room-settings-cover img');
+  cover.hidden = !room.image_url;
+  if (room.image_url) cover.src = room.image_url;
+  else cover.removeAttribute('src');
+  card.media.querySelector('[data-image-position="0"]').textContent =
+    room.image_url ? 'Заменить' : 'Добавить обложку';
+  const thumbnails = room.gallery_images.map((url, index) => {
+    const thumbnail = document.createElement('div');
+    thumbnail.className = 'room-settings-thumbnail';
+    const image = new Image(68, 44);
+    image.src = url;
+    image.alt = '';
+    const replace = document.createElement('button');
+    replace.type = 'button';
+    replace.className = 'admin-control';
+    replace.dataset.imagePosition = index + 1;
+    replace.textContent = 'Заменить фото ' + (index + 1);
+    thumbnail.append(image, replace);
+    return thumbnail;
+  });
+  card.media.querySelector('[data-image-gallery]').replaceChildren(...thumbnails);
+  const add = card.media.querySelector('[data-add-image]');
+  add.dataset.imagePosition = room.gallery_images.length + 1;
+  add.hidden = room.gallery_images.length >= 5;
+}
+
 function failCard(card, failure) {
   const details = Array.isArray(failure.details) ? failure.details : [];
   const fields = details.map(item => item.field).filter(name => fieldNames.includes(name));
@@ -112,6 +145,44 @@ function failCard(card, failure) {
 }
 
 for (const card of cards) {
+  card.media.addEventListener('click', event => {
+    const button = event.target.closest('[data-image-position]');
+    if (!button || button.disabled) return;
+    card.pendingPosition = Number(button.dataset.imagePosition);
+    card.file.click();
+  });
+  card.file.addEventListener('change', async () => {
+    const file = card.file.files[0];
+    const position = card.pendingPosition;
+    card.file.value = '';
+    if (!file || position === null || card.loading || saving || card.needsReload) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showError(card, 'Изображение должно весить не больше 5 МБ.');
+      return;
+    }
+    const pending = Object.keys(edits(card));
+    card.loading = true;
+    showError(card);
+    show(card.feedback, 'Загрузка изображения…');
+    render();
+    try {
+      const csrf = await getJson('/api/v1/auth/csrf');
+      const room = await getJson('/api/v1/admin/rooms/' + card.id + '/images/' + position + '?version=' + card.version, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/octet-stream', 'X-CSRF-Token': csrf.csrf_token},
+        body: file,
+      });
+      applyVersion(card, room, pending);
+      renderImages(card, room);
+      show(card.feedback, 'Изображение сохранено.');
+    } catch (failure) {
+      show(card.feedback);
+      failCard(card, failure);
+    } finally {
+      card.loading = false;
+      render();
+    }
+  });
   for (const field of Object.values(card.fields)) {
     field.addEventListener('input', () => {
       if (!card.needsReload) showError(card);
@@ -125,8 +196,9 @@ for (const card of cards) {
     card.loading = true;
     render();
     try {
-      const room = await getJson('/api/v1/rooms/' + card.id);
+      const room = await getJson('/api/v1/admin/rooms/' + card.id + '/images');
       applyVersion(card, room, pending);
+      renderImages(card, room);
       showError(card);
       show(card.feedback, 'Актуальные настройки · ' + priceFormat.format(room.hourly_price_minor / 100) +
         ' ₽/ч, ' + room.opens_at + '–' + room.closes_at + '. Проверьте правки перед сохранением.');

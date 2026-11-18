@@ -15,7 +15,7 @@ from app.bookings.router import router as bookings_router
 from app.config import PROJECT_ROOT, Settings, get_settings
 from app.database import create_database_engine
 from app.rooms.router import router as rooms_router
-from app.web.formatters import format_price_minor, studio_format
+from app.web.formatters import duration_label, format_price_minor, studio_day, studio_format
 from app.web.router import router as web_router
 
 logger = logging.getLogger(__name__)
@@ -38,6 +38,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     templates = Jinja2Templates(directory=PROJECT_ROOT / "frontend" / "templates")
     templates.env.filters["price"] = format_price_minor
     templates.env.filters["studio_format"] = studio_format
+    templates.env.filters["studio_day"] = studio_day
+    templates.env.filters["duration"] = duration_label
     application.state.templates = templates
     application.mount(
         "/static",

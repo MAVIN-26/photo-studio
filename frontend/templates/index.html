@@ -4,14 +4,15 @@
 <main class="catalog-content" id="main-content">
   <div class="catalog-heading">
     <h1>Залы студии</h1>
-    <p>Выберите пространство для съёмки</p>
+    <p>Сегодня {{ date }} · время московское</p>
   </div>
   <div class="catalog-grid">
     {% for room in rooms %}
     <article class="room-card" aria-labelledby="room-{{ room.id }}">
       <a class="room-image-link" href="{{ url_for('room_page', room_id=room.id) }}" aria-label="Подробнее о зале «{{ room.name }}»" tabindex="-1">
-        {% if room.image_url %}
-          <img class="room-image" src="{{ room.image_url }}" alt="Зал «{{ room.name }}»" width="343" height="172" {% if not loop.first %}loading="lazy"{% endif %}>
+        {% set cover = room.image_url or room.gallery_images | first %}
+        {% if cover %}
+          <img class="room-image" src="{{ cover }}" alt="Зал «{{ room.name }}»" width="343" height="172" {% if not loop.first %}loading="lazy"{% endif %}>
         {% else %}
           <span class="room-image image-missing">{{ icon('image') }}<span>Изображение зала пока не добавлено</span></span>
         {% endif %}
@@ -22,8 +23,14 @@
           <p class="room-price"><strong>{{ room.hourly_price_minor | price }} ₽</strong><span>/ час</span></p>
         </div>
         {% if room.description %}<p class="room-summary">{{ room.description.split('. ', 1)[0] }}{% if '. ' in room.description %}.{% endif %}</p>{% endif %}
-        <p class="room-hours">{{ icon('clock') }}<span>Ежедневно {{ room.opens_at.strftime('%H:%M') }}–{{ room.closes_at.strftime('%H:%M') }} · МСК</span></p>
-        <a class="button primary room-card-link" href="{{ url_for('room_page', room_id=room.id) }}" aria-label="Подробнее о зале «{{ room.name }}»">Подробнее о зале</a>
+        {% set available_today = free_hours[room.id] %}
+        <p class="room-hours{% if available_today %} room-hours-available{% endif %}">
+          {{ icon('clock') }}
+          {% if available_today %}<span><strong>Свободно:</strong> {{ available_today | join(', ') }}</span>
+          {% else %}<span>Сегодня всё занято</span>{% endif %}
+        </p>
+        <p class="room-opening-hours">Ежедневно {{ room.opens_at.strftime('%H:%M') }}–{{ room.closes_at.strftime('%H:%M') }}</p>
+        <a class="button primary room-card-link" href="{{ url_for('room_page', room_id=room.id) }}#booking" aria-label="Выбрать время в зале «{{ room.name }}»">Выбрать время</a>
       </div>
     </article>
     {% else %}

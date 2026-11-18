@@ -7,7 +7,8 @@
 {% block catalog_content %}
 {% set event = notification.payload.get('trigger') if notification else none %}
 {% set payment_confirmation = entry and entry.status == 'paid' and event == 'booking_paid' %}
-<main class="catalog-content{% if payment_confirmation %} booking-payment-page{% endif %}" id="main-content">
+{% set payment_pending = entry and entry.status == 'pending_payment' %}
+<main class="catalog-content{% if payment_confirmation or payment_pending %} booking-payment-page{% endif %}" id="main-content">
   <p class="booking-notice" data-booking-notice role="status" hidden></p>
   {% if entry %}
   <a href="/my/bookings" class="room-back">{{ icon('arrow') }}Мои брони</a>
@@ -25,9 +26,15 @@
     <p>Приходите за 10 минут до начала. Съёмка длится 55 минут, последние 5 минут — выход и осмотр зала.</p>
     <p class="booking-help">Демо: SMS и письма не отправляются. Подтверждение показано на экране.</p>
   </section>
+  {% elif payment_pending %}
+  <div class="booking-payment-header">
+    <h1>{{ 'Бронь создана' if event == 'booking_created' else 'Бронь ожидает оплаты' }}</h1>
+    <p>Время уже закреплено за вами. Оплатите бронь в деморежиме.</p>
+    {% include "components/booking_status.html" %}
+  </div>
   {% endif %}
   <section class="surface booking-detail-card">
-    {% if payment_confirmation %}
+    {% if payment_confirmation or payment_pending %}
     <div class="booking-detail-room">
       {% if room.image_url %}<img src="{{ room.image_url }}" alt="" width="64" height="64">{% endif %}
       <div><h2>{{ room.name }}</h2><p>{{ entry.hourly_price_minor | price }} ₽ за час</p></div>
@@ -40,11 +47,11 @@
     {% include "components/booking_latest_change.html" %}
     {% endif %}
     <dl class="account-details">
-      {% if payment_confirmation %}<dt>Номер брони</dt><dd>{{ (entry.id | string)[:8] }}</dd>{% endif %}
-      <dt>Дата</dt><dd>{{ entry.starts_at | studio_format('%d.%m.%Y') }}</dd>
+      {% if payment_confirmation or payment_pending %}<dt>Номер брони</dt><dd>№ {{ (entry.id | string)[:8] }}</dd>{% endif %}
+      <dt>Дата</dt><dd>{{ entry.starts_at | studio_day }} · {{ entry.starts_at | studio_format('%d.%m.%Y') }}</dd>
       <dt>Время</dt><dd>{{ entry.starts_at | studio_format('%H:%M') }}–{{ entry.ends_at | studio_format('%H:%M') }} МСК</dd>
-      {% if payment_confirmation %}<dt>Длительность</dt><dd>{{ duration_hours }} ч</dd>{% endif %}
-      <dt>Итого</dt><dd>{{ entry.total_price_minor | price }} ₽</dd>
+      {% if payment_confirmation or payment_pending %}<dt>Длительность</dt><dd>{{ duration_hours | duration }}</dd>{% endif %}
+      <dt>Итого</dt><dd><strong>{{ entry.total_price_minor | price }} ₽</strong>{% if payment_confirmation or payment_pending %}<br><small>{{ entry.hourly_price_minor | price }} ₽ × {{ duration_hours | duration }}</small>{% endif %}</dd>
       <dt>Имя</dt><dd>{{ entry.contact_name }}</dd>
       <dt>Телефон</dt><dd>{{ entry.contact_phone }}</dd>
       {% if entry.comment %}<dt>Комментарий</dt><dd>{{ entry.comment }}</dd>{% endif %}

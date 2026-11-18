@@ -5,25 +5,54 @@
   {% include "components/booking_action_assets.html" %}
 {% endblock %}
 {% block catalog_content %}
-<main class="catalog-content" id="main-content">
+<main class="catalog-content booking-list" id="main-content">
   <h1>Мои брони</h1>
+  <nav class="booking-list-tabs" aria-label="Период бронирования">
+    <a href="/my/bookings?tab=upcoming"{% if tab == 'upcoming' %} aria-current="page"{% endif %}>Предстоящие · {{ counts.upcoming }}</a>
+    <a href="/my/bookings?tab=past"{% if tab == 'past' %} aria-current="page"{% endif %}>Прошедшие · {{ counts.past }}</a>
+  </nav>
   <p class="booking-notice" data-booking-notice role="status" hidden></p>
   {% for entry in items %}
-    <article class="surface">
-      <h2><a href="/my/bookings/{{ entry.id }}">{{ rooms[entry.room_id] }}</a></h2>
-      <p>{{ entry.starts_at | studio_format('%d.%m.%Y, %H:%M') }}–{{ entry.ends_at | studio_format('%H:%M') }} МСК</p>
-      <p>{{ entry.total_price_minor | price }} ₽ · {% include "components/booking_status.html" %}</p>
-      {% set booking_room_name = rooms[entry.room_id] %}
-      {% include "components/booking_actions.html" %}
+    {% set room = rooms[entry.room_id] %}
+    {% set remaining = (entry.starts_at - now).total_seconds() %}
+    <article class="surface booking-list-card">
+      <header>{% include "components/booking_status.html" %}<small>№ {{ (entry.id | string)[:8] }}</small></header>
+      <div class="booking-detail-room">
+        {% if room.image_url %}<img src="{{ room.image_url }}" alt="" width="64" height="64" loading="lazy">{% endif %}
+        <div>
+          <h2><a href="/my/bookings/{{ entry.id }}">{{ room.name }}</a></h2>
+          <p>{{ entry.starts_at | studio_day }} · {{ entry.starts_at | studio_format('%H:%M') }}–{{ entry.ends_at | studio_format('%H:%M') }} МСК</p>
+          <p>{{ (((entry.ends_at - entry.starts_at).total_seconds()) // 3600) | int | duration }} · {{ entry.total_price_minor | price }} ₽{% if 0 < remaining < 86400 and entry.status != 'cancelled' %} · {{ 'меньше часа' if remaining < 3600 else 'через ' ~ (((remaining / 3600) | int) | duration) }}{% endif %}</p>
+        </div>
+      </div>
+      {% if tab == 'past' %}
+      <a class="button booking-repeat" href="/rooms/{{ room.id }}#booking">Забронировать снова</a>
+      {% elif entry.status == 'cancelled' %}
+      <p class="booking-list-note">Время освободилось для других клиентов.</p>
+      {% else %}
+        {% set booking_room_name = room.name %}
+        {% include "components/booking_actions.html" %}
+        {% if 0 < remaining < 86400 %}
+        <div class="booking-secondary-actions">
+          <button class="button compact" type="button" disabled>Перенести</button>
+          <button class="button compact" type="button" disabled>Отменить</button>
+        </div>
+        <p class="booking-list-note">Перенос и отмена доступны не позднее чем за 24 часа до начала. Свяжитесь с администратором{% if studio_phone %} по телефону <a href="tel:{{ studio_phone }}">{{ studio_phone }}</a>{% endif %}.</p>
+        {% endif %}
+      {% endif %}
     </article>
   {% else %}
-    <p>На этой странице нет броней.</p>
-    <a href="/">Посмотреть залы</a>
+    <section class="catalog-empty">
+      {{ icon('calendar') }}
+      <h2>{{ 'У вас пока нет броней' if not counts.upcoming and not counts.past else ('Нет предстоящих броней' if tab == 'upcoming' else 'Нет прошедших броней') }}</h2>
+      <p>Выберите зал и удобное время.</p>
+      <a class="button primary" href="/">Выбрать зал</a>
+    </section>
   {% endfor %}
   {% if offset or total > 20 %}
   <nav aria-label="Страницы броней">
-    {% if offset %}<a class="room-back" href="?offset={{ [0, offset - 20] | max }}">Назад</a>{% endif %}
-    {% if offset + 20 < total %}<a class="room-back" href="?offset={{ offset + 20 }}">Дальше</a>{% endif %}
+    {% if offset %}<a class="room-back" href="?tab={{ tab }}&amp;offset={{ [0, offset - 20] | max }}">Назад</a>{% endif %}
+    {% if offset + 20 < total %}<a class="room-back" href="?tab={{ tab }}&amp;offset={{ offset + 20 }}">Дальше</a>{% endif %}
   </nav>
   {% endif %}
 </main>
