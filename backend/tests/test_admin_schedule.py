@@ -242,3 +242,89 @@ def test_admin_booking_actions(database, monkeypatch):
             "notification_simulated",
             "notification_simulated",
         ]
+
+
+def test_manual_booking_permissions_and_shared_calendar(database, monkeypatch):
+    from app.bookings import service
+    from app.main import create_app
+    from scripts.seed_rooms import seed_rooms
+
+    engine, settings, _ = database
+    seed_rooms(engine)
+    email = "manual-admin@example.ru"
+    with Session(engine) as db:
+        create_admin(db, "Администратор", email, PASSWORD)
+        db.commit()
+        actor_id = db.scalar(select(User.id).where(User.email == email))
+
+    now = datetime(2026, 11, 18, 11, tzinfo=STUDIO_ZONE)
+    monkeypatch.setattr(service, "studio_now", lambda: now)
+    app = create_app(settings)
+    with TestClient(app) as client, TestClient(app) as admin:
+        client_headers = register(client, "manual-client@example.ru")
+        token = admin.get("/api/v1/auth/csrf").json()["csrf_token"]
+        login = admin.post(
+            "/api/v1/auth/login",
+            headers={"X-CSRF-Token": token},
+            json={"identifier": email, "password": PASSWORD},
+        )
+        assert login.status_code == 200
+        headers = {"X-CSRF-Token": login.json()["csrf_token"]}
+        day = now.date()
+        body = booking_body(
+            client,
+            starts_at=f"{day}T13:00:00+03:00",
+            ends_at=f"{day}T15:00:00+03:00",
+            comment="Понадобится фон",
+        )
+        manual = body | {"source": "vk"}
+        url = "/api/v1/admin/bookings"
+        assert client.post(url, headers=client_headers, json=manual).status_code == 403
+        assert admin.post(url, json=manual).status_code == 403
+        assert (
+            admin.post(url, headers=headers, json=manual | {"source": "website"}).status_code == 422
+        )
+        assert (
+            admin.post(url, headers=headers, json=manual | {"total_price_minor": 1}).status_code
+            == 422
+        )
+        stale = admin.post(url, headers=headers, json=manual | {"room_version": 2})
+        assert stale.json()["error"]["code"] == "ROOM_SETTINGS_CHANGED"
+
+        response = admin.post(url, headers=headers, json=manual)
+        assert response.status_code == 201, response.text
+        created = response.json()
+        assert created["status"] == "confirmed"
+        assert (
+            created["source"] == "vk" and created["user_id"] is None and created["paid_at"] is None
+        )
+        assert created["total_price_minor"] == created["hourly_price_minor"] * 2
+        assert admin.get(response.headers["Location"]).json()["id"] == created["id"]
+        assert client.get(f"/api/v1/bookings/{created['id']}").status_code == 404
+        availability_url = f"/api/v1/rooms/{body['room_id']}/availability?date={day}"
+        slots = client.get(availability_url).json()["slots"]
+        assert all(not slot["available"] for slot in slots[4:6])
+        conflict = client.post("/api/v1/bookings", headers=client_headers, json=body)
+        assert conflict.status_code == 409
+        assert conflict.json()["error"]["code"] == "SLOT_UNAVAILABLE"
+        adjacent = body | {"starts_at": f"{day}T15:00:00+03:00", "ends_at": f"{day}T16:00:00+03:00"}
+        assert (
+            client.post("/api/v1/bookings", headers=client_headers, json=adjacent).status_code
+            == 201
+        )
+        conflict = admin.post(url, headers=headers, json=adjacent | {"source": "phone"})
+        assert conflict.status_code == 409
+        assert conflict.json()["error"]["code"] == "SLOT_UNAVAILABLE"
+        page = admin.get("/admin", params={"date": day}).text
+        assert "Новая бронь: Циклорама, 13:00" not in page
+        assert "Новая бронь: Циклорама, 16:00" in page
+
+        with engine.connect() as connection:
+            entry = connection.execute(
+                select(ScheduleEntry.created_by).where(ScheduleEntry.id == created["id"])
+            ).scalar_one()
+            events = connection.scalars(
+                select(EventLog.event_type).where(EventLog.entry_id == created["id"])
+            ).all()
+        assert entry == actor_id
+        assert sorted(events) == ["booking_created", "notification_simulated"]

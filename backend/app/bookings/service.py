@@ -13,6 +13,7 @@ from app.bookings.schemas import (
     BookingScope,
     BookingStatus,
     CreateBooking,
+    ManualBookingSource,
     RescheduleBooking,
     Slot,
 )
@@ -100,7 +101,9 @@ def lock_room(db: Session, room_id: UUID) -> Room:
     return room
 
 
-def create_booking(db: Session, user_id: UUID, body: CreateBooking) -> ScheduleEntry:
+def create_booking(
+    db: Session, actor_id: UUID, body: CreateBooking, *, source: ManualBookingSource | None = None
+) -> ScheduleEntry:
     room = lock_room(db, body.room_id)
     if body.room_version != room.version:
         fail(409, "ROOM_SETTINGS_CHANGED", "Условия зала изменились. Проверьте цену и время.")
@@ -112,10 +115,10 @@ def create_booking(db: Session, user_id: UUID, body: CreateBooking) -> ScheduleE
         starts_at=starts_at,
         ends_at=ends_at,
         kind="booking",
-        status="pending_payment",
-        user_id=user_id,
-        created_by=user_id,
-        source="website",
+        status="confirmed" if source else "pending_payment",
+        user_id=None if source else actor_id,
+        created_by=actor_id,
+        source=source or "website",
         contact_name=body.contact_name,
         contact_phone=body.contact_phone,
         comment=body.comment,
@@ -123,7 +126,7 @@ def create_booking(db: Session, user_id: UUID, body: CreateBooking) -> ScheduleE
         total_price_minor=room.hourly_price_minor * hours,
     )
     db.add(entry)
-    commit_booking_event(db, entry, user_id, "booking_created", {})
+    commit_booking_event(db, entry, actor_id, "booking_created", {})
     return entry
 
 

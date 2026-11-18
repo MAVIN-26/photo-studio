@@ -2,10 +2,10 @@ from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 
 from app.admin import service
-from app.admin.schemas import AdminBooking, AdminSchedule, ChangedAdminBooking
+from app.admin.schemas import AdminBooking, AdminSchedule, ChangedAdminBooking, CreateManualBooking
 from app.auth.dependencies import CsrfSession, require_admin
 from app.auth.models import User
 from app.bookings.schemas import Availability, BookingVersion, RescheduleBooking
@@ -23,6 +23,17 @@ def schedule(date_from: date, date_to: date, db: Database, room_id: UUID | None 
 @router.get("/bookings/{booking_id}", response_model=AdminBooking)
 def booking_detail(booking_id: UUID, db: Database):
     return service.admin_booking_response(db, service.read_booking(db, booking_id))
+
+
+@router.post("/bookings", status_code=201, response_model=ChangedAdminBooking)
+def create(
+    body: CreateManualBooking, admin: Admin, db: Database, csrf: CsrfSession, response: Response
+):
+    entry = service.create_manual_booking(db, admin.id, body)
+    response.headers["Location"] = f"/api/v1/admin/bookings/{entry.id}"
+    return ChangedAdminBooking(
+        **service.admin_booking_response(db, entry).model_dump(), message="Бронь создана."
+    )
 
 
 @router.get("/bookings/{booking_id}/availability", response_model=Availability)

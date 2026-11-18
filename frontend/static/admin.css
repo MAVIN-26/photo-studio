@@ -323,6 +323,82 @@ button.admin-entry:hover {
   color: var(--secondary);
   font-size: 14px;
 }
+.admin-new-booking {
+  margin-inline-start: auto;
+}
+.admin-create-slot {
+  border: 0;
+  border-bottom: 1px solid #e3e1db;
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+}
+.admin-create-slot span {
+  opacity: 0;
+}
+.admin-create-slot:not(:disabled):hover, .admin-create-slot:focus-visible {
+  background: #ece9fd;
+}
+.admin-create-slot:hover:not(:disabled) span, .admin-create-slot:focus-visible span {
+  opacity: 1;
+}
+.admin-create-slot:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.admin-create-form label {
+  display: block;
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.admin-create-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+}
+.admin-create-form label > .admin-control {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin-top: 5px;
+  font-weight: 400;
+}
+.admin-create-form textarea {
+  resize: vertical;
+}
+.admin-create-form [aria-invalid="true"] {
+  border-color: var(--error);
+}
+.admin-create-error {
+  margin: 0 0 14px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #fceaea;
+  color: #8a2222;
+  font-size: 14px;
+}
+.admin-create-total {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--muted);
+}
+.admin-create-total span {
+  display: block;
+}
+.admin-create-total strong {
+  font-size: 20px;
+}
+@media (hover: none) {
+  .admin-create-slot:not(:disabled) span {
+    opacity: 1;
+  }
+}
 @media (max-width: 760px) {
   .admin-layout {
     grid-template-columns: minmax(0, 1fr);

@@ -1,4 +1,5 @@
 import { getJson, openBookingPage } from './booking-http.js';
+import { initManualBooking } from './admin-create-booking.js';
 
 const grid = document.querySelector('.admin-grid');
 const panel = document.querySelector('#booking-details');
@@ -315,6 +316,7 @@ if (grid) {
     for (const slot of grid.querySelectorAll('[data-hour]')) {
       slot.classList.toggle('is-past', grid.dataset.day < date
         || (grid.dataset.day === date && Number(slot.dataset.hour) <= hours));
+      if (slot.matches('button')) slot.disabled = slot.classList.contains('is-past');
     }
     if (marker) {
       marker.hidden = date !== grid.dataset.day || hours < 9 || hours >= 23;
@@ -325,3 +327,5 @@ if (grid) {
   updateTime();
   setInterval(updateTime, 30000);
 }
+
+initManualBooking({grid, localDate, timeFormat, priceFormat, pathFor});

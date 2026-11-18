@@ -1,0 +1,51 @@
+<dialog class="admin-drawer" id="admin-create-booking" aria-labelledby="create-booking-heading">
+  <header>
+    <h2 id="create-booking-heading">Новая бронь</h2>
+    <button type="button" class="admin-control" data-close aria-label="Закрыть форму">×</button>
+  </header>
+  <form class="admin-drawer-body admin-create-form">
+    <p class="admin-create-error" role="alert" hidden></p>
+    <div class="admin-create-fields">
+      <label>Зал
+        <select class="admin-control" name="room" required>
+          {% for column in columns %}<option value="{{ column.room.id }}">{{ column.room.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Дата
+        <input class="admin-control" type="date" name="day" min="{{ today }}" max="{{ last_booking_day }}" required>
+      </label>
+      <label>Время начала
+        <select class="admin-control" name="start" required></select>
+      </label>
+      <label>Число часов
+        <input class="admin-control" type="number" name="hours" min="1" max="14" value="1" required>
+      </label>
+    </div>
+    <p class="admin-muted" role="status" data-create-availability></p>
+    <button class="text-button" type="button" data-create-retry hidden>Обновить доступность</button>
+    <label>Имя клиента
+      <input class="admin-control" name="contact_name" autocomplete="off" maxlength="100" placeholder="Например, Мария Иванова" required>
+    </label>
+    <label>Телефон
+      <input class="admin-control" name="contact_phone" type="tel" autocomplete="off" maxlength="64" placeholder="+7 999 000-00-00" required>
+    </label>
+    <label>Источник
+      <select class="admin-control" name="source">
+        <option value="phone">Звонок</option>
+        <option value="telegram">Telegram</option>
+        <option value="vk">VK</option>
+      </select>
+    </label>
+    <label>Комментарий <span class="admin-muted">необязательно</span>
+      <textarea class="admin-control" name="comment" maxlength="1000" rows="2" placeholder="Например, нужен второй фон"></textarea>
+    </label>
+    <div class="admin-create-total">
+      <div><small>Итого · считается автоматически</small><span data-create-calculation></span></div>
+      <strong data-create-total>—</strong>
+    </div>
+    <div class="admin-drawer-actions">
+      <button class="button primary" type="submit" disabled>Сохранить</button>
+      <button class="admin-control" type="button" data-close>Отмена</button>
+    </div>
+  </form>
+</dialog>

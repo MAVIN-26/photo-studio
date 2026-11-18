@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.admin.schemas import AdminBooking, AdminSchedule, ScheduleBlock
+from app.admin.schemas import AdminBooking, AdminSchedule, CreateManualBooking, ScheduleBlock
 from app.auth.dependencies import fail
 from app.bookings import service
 from app.bookings.models import EventLog, ScheduleEntry
@@ -156,3 +156,7 @@ def reschedule_availability(db: Session, booking_id: UUID, day: date) -> Availab
     if room is None:
         fail(404, "ROOM_NOT_FOUND", "Зал не найден.")
     return service.availability(db, room, day, exclude_booking_id=entry.id)
+
+
+def create_manual_booking(db: Session, actor_id: UUID, body: CreateManualBooking) -> ScheduleEntry:
+    return service.create_booking(db, actor_id, body, source=body.source)
