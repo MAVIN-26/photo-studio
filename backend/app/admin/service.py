@@ -1,10 +1,16 @@
 from datetime import date, datetime, time, timedelta
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import Time, cast, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.admin.schemas import AdminBooking, AdminSchedule, CreateManualBooking, ScheduleBlock
+from app.admin.schemas import (
+    AdminBooking,
+    AdminSchedule,
+    CreateManualBooking,
+    RoomSettingsPatch,
+    ScheduleBlock,
+)
 from app.auth.dependencies import fail
 from app.bookings import service
 from app.bookings.models import EventLog, ScheduleEntry
@@ -160,3 +166,69 @@ def reschedule_availability(db: Session, booking_id: UUID, day: date) -> Availab
 
 def create_manual_booking(db: Session, actor_id: UUID, body: CreateManualBooking) -> ScheduleEntry:
     return service.create_booking(db, actor_id, body, source=body.source)
+
+
+def update_room_settings(
+    db: Session, room_id: UUID, body: RoomSettingsPatch, actor_id: UUID
+) -> Room:
+    room = service.lock_room(db, room_id)
+    if body.version != room.version:
+        fail(409, "VERSION_CONFLICT", "Настройки зала изменились в другой вкладке.")
+
+    opens_at = body.opens_at if body.opens_at is not None else room.opens_at
+    closes_at = body.closes_at if body.closes_at is not None else room.closes_at
+    if opens_at >= closes_at:
+        fail(422, "INVALID_TIME_RANGE", "Время открытия должно быть раньше времени закрытия.")
+
+    if opens_at > room.opens_at or closes_at < room.closes_at:
+        conflict = db.scalar(
+            select(ScheduleEntry)
+            .where(
+                ScheduleEntry.room_id == room.id,
+                ScheduleEntry.status != "cancelled",
+                ScheduleEntry.ends_at > service.studio_now(),
+                or_(
+                    cast(func.timezone(service.STUDIO_ZONE.key, ScheduleEntry.starts_at), Time)
+                    < opens_at,
+                    cast(func.timezone(service.STUDIO_ZONE.key, ScheduleEntry.ends_at), Time)
+                    > closes_at,
+                ),
+            )
+            .order_by(ScheduleEntry.starts_at, ScheduleEntry.id)
+            .limit(1)
+        )
+        if conflict is not None:
+            start = conflict.starts_at.astimezone(service.STUDIO_ZONE)
+            end = conflict.ends_at.astimezone(service.STUDIO_ZONE)
+            record = "блокировка" if conflict.kind == "maintenance" else "бронь"
+            fail(
+                409,
+                "ROOM_SCHEDULE_CONFLICT",
+                f"Вне новых часов окажется {record} {start:%d.%m.%Y} "
+                f"с {start:%H:%M} до {end:%H:%M} МСК.",
+            )
+
+    previous = RoomResponse.model_validate(room).model_dump(mode="json")
+    changes = {
+        field: value
+        for field, value in body.model_dump(exclude_unset=True, exclude={"version"}).items()
+        if value != getattr(room, field)
+    }
+    if changes:
+        for field, value in changes.items():
+            setattr(room, field, value)
+        room.version += 1
+        current = RoomResponse.model_validate(room).model_dump(mode="json")
+        db.add(
+            EventLog(
+                actor_id=actor_id,
+                event_type="room_settings_changed",
+                payload={
+                    "room_id": str(room.id),
+                    "before": {field: previous[field] for field in changes},
+                    "after": {field: current[field] for field in changes},
+                },
+            )
+        )
+    db.commit()
+    return room

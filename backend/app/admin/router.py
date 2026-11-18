@@ -5,14 +5,28 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Response
 
 from app.admin import service
-from app.admin.schemas import AdminBooking, AdminSchedule, ChangedAdminBooking, CreateManualBooking
+from app.admin.schemas import (
+    AdminBooking,
+    AdminSchedule,
+    ChangedAdminBooking,
+    CreateManualBooking,
+    RoomSettingsPatch,
+)
 from app.auth.dependencies import CsrfSession, require_admin
 from app.auth.models import User
 from app.bookings.schemas import Availability, BookingVersion, RescheduleBooking
 from app.dependencies import Database
+from app.rooms.schemas import RoomResponse
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 Admin = Annotated[User, Depends(require_admin)]
+
+
+@router.patch("/rooms/{room_id}", response_model=RoomResponse)
+def update_room(
+    room_id: UUID, body: RoomSettingsPatch, admin: Admin, db: Database, csrf: CsrfSession
+):
+    return service.update_room_settings(db, room_id, body, admin.id)
 
 
 @router.get("/schedule", response_model=AdminSchedule)

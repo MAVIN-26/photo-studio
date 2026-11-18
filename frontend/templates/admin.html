@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% from "components/icons.html" import icon %}
 {% block title %}Расписание — LumenBook{% endblock %}
 {% block head %}
   <link rel="stylesheet" href="{{ url_for('static', path='/admin.css') }}">
@@ -8,17 +7,7 @@
 {% block content %}
 {% set statuses = {'pending_payment': 'Ожидает оплаты', 'paid': 'Оплачено', 'confirmed': 'Подтверждено', 'cancelled': 'Отменено'} %}
 <div class="admin-layout">
-  <aside class="admin-sidebar">
-    <a class="logo" href="/admin">Lumen<span>Book</span></a>
-    <nav aria-label="Кабинет администратора">
-      <a href="/admin" aria-current="page">Расписание</a>
-    </nav>
-    <div class="admin-account">
-      <strong>{{ user.name }}</strong>
-      <small>{{ user.email or user.phone }}</small>
-      <button type="button" class="text-button" data-logout>{{ icon('logout') }} Выйти</button>
-    </div>
-  </aside>
+  {% include "components/admin_sidebar.html" %}
   <main class="admin-main">
     <header class="admin-toolbar">
       <h1>Расписание</h1>

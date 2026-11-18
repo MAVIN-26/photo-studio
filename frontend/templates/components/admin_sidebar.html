@@ -1,0 +1,13 @@
+{% from "components/icons.html" import icon %}
+<aside class="admin-sidebar">
+  <a class="logo" href="/admin">Lumen<span>Book</span></a>
+  <nav aria-label="Кабинет администратора">
+    <a href="/admin"{% if request.url.path == '/admin' %} aria-current="page"{% endif %}>Расписание</a>
+    <a href="/admin/rooms"{% if request.url.path == '/admin/rooms' %} aria-current="page"{% endif %}>Настройки залов</a>
+  </nav>
+  <div class="admin-account">
+    <strong>{{ user.name }}</strong>
+    <small>{{ user.email or user.phone }}</small>
+    <button type="button" class="text-button" data-logout>{{ icon('logout') }} Выйти</button>
+  </div>
+</aside>

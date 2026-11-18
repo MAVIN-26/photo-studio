@@ -328,3 +328,117 @@ def test_manual_booking_permissions_and_shared_calendar(database, monkeypatch):
             ).all()
         assert entry == actor_id
         assert sorted(events) == ["booking_created", "notification_simulated"]
+
+
+def test_room_settings_preserve_bookings_and_reject_conflicts(database, monkeypatch):
+    from app.bookings import service
+    from app.main import create_app
+    from scripts.seed_rooms import seed_rooms
+
+    engine, settings, _ = database
+    seed_rooms(engine)
+    email = "settings-admin@example.ru"
+    with Session(engine) as db:
+        create_admin(db, "Администратор", email, PASSWORD)
+        db.commit()
+        actor_id = db.scalar(select(User.id).where(User.email == email))
+
+    now = datetime(2026, 11, 18, 11, tzinfo=STUDIO_ZONE)
+    monkeypatch.setattr(service, "studio_now", lambda: now)
+    app = create_app(settings)
+    with TestClient(app) as client, TestClient(app) as admin:
+        assert admin.get("/admin/rooms", follow_redirects=False).status_code == 303
+        client_headers = register(client, "settings-client@example.ru")
+        assert client.get("/admin/rooms").status_code == 403
+        token = admin.get("/api/v1/auth/csrf").json()["csrf_token"]
+        login = admin.post(
+            "/api/v1/auth/login",
+            headers={"X-CSRF-Token": token},
+            json={"identifier": email, "password": PASSWORD},
+        )
+        assert login.status_code == 200
+        headers = {"X-CSRF-Token": login.json()["csrf_token"]}
+        rooms = client.get("/api/v1/rooms").json()["items"]
+        first, second = rooms[:2]
+        assert "Настройки залов" in admin.get("/admin/rooms").text
+        url = f"/api/v1/admin/rooms/{first['id']}"
+        price_only = {"version": 1, "hourly_price_minor": 230_025}
+        assert client.patch(url, json=price_only, headers=client_headers).status_code == 403
+        assert admin.patch(url, json=price_only).status_code == 403
+        for invalid in (
+            {},
+            {"opens_at": None},
+            {"opens_at": "08:00"},
+            {"closes_at": "23:30"},
+            {"hourly_price_minor": 0},
+            {"hourly_price_minor": 2_147_483_648},
+            {"hourly_price_minor": 100.0},
+            {"closes_at": "09:00"},
+            {"description": "новое"},
+        ):
+            assert (
+                admin.patch(url, json={"version": 1, **invalid}, headers=headers).status_code == 422
+            )
+
+        day = now.date()
+        body = booking_body(
+            client, starts_at=f"{day}T13:00:00+03:00", ends_at=f"{day}T15:00:00+03:00"
+        )
+        created = client.post("/api/v1/bookings", json=body, headers=client_headers)
+        assert created.status_code == 201
+        booking = created.json()
+        with engine.begin() as connection:
+            connection.execute(
+                insert(ScheduleEntry).values(
+                    room_id=second["id"],
+                    kind="maintenance",
+                    status="confirmed",
+                    starts_at=now.replace(hour=20),
+                    ends_at=now.replace(hour=21),
+                    source="maintenance",
+                    block_reason="cleaning",
+                    created_by=actor_id,
+                )
+            )
+
+        for room, field in [(first, {"closes_at": "14:00"}), (second, {"closes_at": "20:00"})]:
+            room_url = f"/api/v1/admin/rooms/{room['id']}"
+            conflict = admin.patch(room_url, json=price_only | field, headers=headers)
+            assert conflict.status_code == 409
+            assert conflict.json()["error"]["code"] == "ROOM_SCHEDULE_CONFLICT"
+            assert client.get(f"/api/v1/rooms/{room['id']}").json() == room
+
+        updated = admin.patch(url, json=price_only | {"closes_at": "15:00"}, headers=headers)
+        assert updated.status_code == 200, updated.text
+        assert updated.json()["version"] == 2 and updated.json()["closes_at"] == "15:00"
+        assert client.get(f"/api/v1/rooms/{first['id']}").json() == updated.json()
+        assert (
+            client.get(f"/api/v1/bookings/{booking['id']}").json()["total_price_minor"]
+            == (booking["total_price_minor"])
+        )
+        stale = admin.patch(url, json=price_only, headers=headers)
+        assert stale.json()["error"]["code"] == "VERSION_CONFLICT"
+        old_quote = client.post("/api/v1/bookings", json=body, headers=client_headers)
+        assert old_quote.json()["error"]["code"] == "ROOM_SETTINGS_CHANGED"
+        renamed_price = admin.patch(url, json=price_only | {"version": 2}, headers=headers)
+        assert renamed_price.json()["version"] == 2
+
+        monkeypatch.setattr(service, "studio_now", lambda: now.replace(hour=16))
+        after_booking = admin.patch(url, json={"version": 2, "closes_at": "14:00"}, headers=headers)
+        assert after_booking.status_code == 200
+
+        with engine.connect() as connection:
+            events = (
+                connection.execute(
+                    select(EventLog.payload).where(
+                        EventLog.actor_id == actor_id,
+                        EventLog.event_type == "room_settings_changed",
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert len(events) == 2
+        price_change = next(event for event in events if "hourly_price_minor" in event["after"])
+        assert price_change["before"]["hourly_price_minor"] == first["hourly_price_minor"]
+        assert price_change["after"]["hourly_price_minor"] == 230_025

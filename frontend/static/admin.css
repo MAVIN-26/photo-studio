@@ -15,7 +15,11 @@
   display: block;
   padding: 12px 14px;
   border-radius: 10px;
+  color: var(--text);
+}
+.admin-sidebar nav a[aria-current="page"] {
   background: #ece9fd;
+  color: var(--accent);
   font-weight: 600;
 }
 .admin-account {
@@ -322,6 +326,119 @@ button.admin-entry:hover {
 .admin-operation-time {
   color: var(--secondary);
   font-size: 14px;
+}
+.room-settings-toolbar {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.room-settings-toolbar p {
+  margin: 4px 0 0;
+  color: var(--secondary);
+  font-size: 14px;
+}
+.room-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.room-settings-card {
+  min-width: 0;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--surface);
+}
+.room-settings-card > img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2;
+  object-fit: cover;
+  border-radius: 10px;
+}
+.room-settings-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 12px 0;
+}
+.room-settings-heading h2 {
+  margin: 0;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.room-settings-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #ece9fd;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+.room-settings-card fieldset {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.room-settings-hours {
+  font-size: 14px;
+}
+.room-settings-hours > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 4px 0;
+}
+.room-settings-hours label {
+  min-width: 0;
+  font-size: 13px;
+}
+.room-settings-hours select {
+  width: 100%;
+  margin-top: 4px;
+  padding-inline: 6px;
+}
+.room-settings-hours small {
+  color: var(--secondary);
+}
+.room-settings-description h3 {
+  margin: 14px 0 6px;
+  font-size: 14px;
+}
+.room-settings-description p {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--muted);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.room-settings-card [aria-invalid="true"] {
+  border-color: var(--error);
+}
+.room-settings-feedback, .room-settings-error, .room-settings-summary {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #ece9fd;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.room-settings-error {
+  background: #fceaea;
+  color: #8a2222;
+}
+@media (max-width: 1170px) {
+  .room-settings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 550px) {
+  .room-settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .admin-new-booking {
   margin-inline-start: auto;
